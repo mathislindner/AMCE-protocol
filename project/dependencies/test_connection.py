@@ -1,20 +1,10 @@
 import requests
+import certifi
 
-ip_address = "0.0.0.0"
-port = 15000
+ip_address = "localhost"
+port = 14000
 
-#establish connection with pebble
-def test_connection():
-    try:
-        r = requests.get(f"http://{ip_address}:{port}/test")
-        if r.status_code == 200:
-            print("Connection established with pebble")
-            return True
-        else:
-            print("Connection could not be established with pebble")
-            return False
-    except:
-        print("Connection could not be established with pebble")
-        return False
-    
-test_connection()
+#establish an https connection with pebble and get the dir
+pem_path = "project/pebble.minica.pem"
+r = requests.get(f"https://{ip_address}:{port}/dir", verify=pem_path)
+print(r.json())
