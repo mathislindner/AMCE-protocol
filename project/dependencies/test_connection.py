@@ -20,8 +20,9 @@ def get_domains_from_CA():
 
 # not sure if i wanna keep this here (but i don t want to call it every time i need it)
 CA_domains = get_domains_from_CA()
-    
-def test_payload():
+print(CA_domains)
+
+def test_wellformedness():
     pem_path = "project/pebble.minica.pem"
     headers = {
         "Content-Type": "application/jose+json"
@@ -171,3 +172,15 @@ def create_new_account():
     return r.json()
 
 print(create_new_account())
+
+def get_challenge():
+    """_summary_
+    Get a challenge from the CA
+        Returns:
+        _type_: dict
+    """
+    #establish an https connection and ask for a challenge from the CA
+    pem_path = "project/pebble.minica.pem"
+    r = requests.post(CA_domains["getChallenge"], verify=pem_path)
+    return r.json()
+
