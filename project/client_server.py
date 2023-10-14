@@ -1,12 +1,13 @@
 import requests
-from jws import jws_creator
+from dependencies.jws import jws_creator
 import json
 
 ACME_server_address = "localhost"
 ACME_server_port = 14000
-
+pem_path = "pebble.minica.pem"
 class Client():
-    def __init__(self, ip_address, port):
+    def __init__(self, ip_address, port, pem_path):
+        self.pem_path = "pebble.minica.pem"
         self.ip_address = ip_address
         self.port = port
         self.CA_domains = self.get_domains_from_CA()
@@ -18,36 +19,14 @@ class Client():
 
     def get_domains_from_CA(self):
         #establish an https connection with pebble and get the dir
-        pem_path = "project/pebble.minica.pem"
-        r = requests.get(f"https://{ACME_server_address}:{ACME_server_port}/dir", verify=pem_path)
+        r = requests.get(f"https://{ACME_server_address}:{ACME_server_port}/dir", verify=self.pem_path)
         return r.json()
 
     def get_nonce_from_CA(self):
         #establish an https connection with pebble and get the dir
-        pem_path = "project/pebble.minica.pem"
         nonce_url = self.CA_domains["newNonce"]
-        r = requests.head(nonce_url, verify=pem_path)
+        r = requests.head(nonce_url, verify=self.pem_path)
         return r.headers["Replay-Nonce"]
-
-    def get_protected_header(self, header, nonce):
-        #add the nonce to the header
-        header["nonce"] = nonce
-        #encode the header
-        header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode("utf-8"))
-        return header_b64
-
-    def get_payload(self):
-        #prepare the payload
-        payload = {
-            "termsOfServiceAgreed": True,
-            "contact": [
-                "mailto:test@test.com"
-            ]
-        }
-        #encode the payload
-        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8"))
-        return payload_b64
-
 
     def create_new_account(self):
         """_summary_
@@ -55,8 +34,6 @@ class Client():
             Returns:
             _type_: str, str
         """
-        #establish an https connection with pebble and create a new account
-        pem_path = "project/pebble.minica.pem"
         #set header to application/jose+json
         headers = {
             "Content-Type": "application/jose+json"
@@ -69,9 +46,9 @@ class Client():
         #remove spaces from the jws
         new_account_jws = json.dumps(new_account_jws)
         #send the jws to the CA
-        print(new_account_jws)
-        r = requests.post(self.CA_domains["newAccount"], data=new_account_jws, headers=headers, verify=pem_path)
+        r = requests.post(self.CA_domains["newAccount"], data=new_account_jws, headers=headers, verify=self.pem_path)
         if r.status_code == 201:
+            print("New account created")
             #get the kid from the response
             return r.headers["Location"]
         else:
@@ -88,4 +65,4 @@ class Client():
         r = requests.post(CA_domains["getChallenge"], verify=pem_path)
         return r.json()
 
-client = Client(ACME_server_address, ACME_server_port)
+client = Client(ACME_server_address, ACME_server_port, pem_path)
