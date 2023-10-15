@@ -15,20 +15,6 @@ class jws_creator():
         public_key = private_key.public_key()
         return private_key, public_key
         
-    def create_protected_header(self, nonce,url):
-        """_summary_
-        Create the protected header
-        Returns:
-            _type_: dict
-        """
-        protected_dict = {
-            "alg": "ES256",
-            "jwk": self.get_jwk(),
-            "nonce": nonce,
-            "url": url       
-        }
-        return protected_dict
-        
     def get_jwk(self):
         return {
             "kty": "EC",
@@ -52,7 +38,7 @@ class jws_creator():
         #return the signature
         return r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big")
         
-    def create_protected_header(self, nonce,url):
+    def create_protected_header(self, nonce,url, kid=None):
         """_summary_
         Create the protected header
         Returns:
@@ -60,19 +46,24 @@ class jws_creator():
         """
         protected_dict = {
             "alg": "ES256",
-            "jwk": self.get_jwk(),
             "nonce": nonce,
             "url": url       
         }
+        if kid != None:
+            protected_dict["kid"] = kid
+        else:
+            protected_dict["jwk"] = self.get_jwk()
+            
         return protected_dict
         
-    def get_jws(self, payload_dict, nonce, url):
+    def get_jws(self, payload_dict, nonce, url, kid=None):
         """_summary_
         Create a jws
         Returns:
             _type_: dict
         """
-        protected_dict = self.create_protected_header(nonce, url)
+
+        protected_dict = self.create_protected_header(nonce, url, kid)
         
         #get the protected header in base64
         protected_b64 = base64.urlsafe_b64encode(json.dumps(protected_dict).encode("utf-8")).decode("utf-8").replace("=", "")
@@ -88,4 +79,4 @@ class jws_creator():
             "payload": payload_b64,
             "signature": signature_b64
         }
-        return jws
+        return json.dumps(jws)

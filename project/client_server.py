@@ -2,24 +2,24 @@ import requests
 from dependencies.jws import jws_creator
 import json
 
-ACME_server_address = "localhost"
-ACME_server_port = 14000
-pem_path = "pebble.minica.pem"
 class Client():
-    def __init__(self, ip_address, port, pem_path):
-        self.pem_path = "pebble.minica.pem"
-        self.ip_address = ip_address
-        self.port = port
+    def __init__(self, dir_address, pem_path):
+        #get the domains from the CA
+        self.pem_path = pem_path
+        self.dir_address = dir_address
         self.CA_domains = self.get_domains_from_CA()
-        #create jws object to sign the requests
+        #create a jws signer
         self.jws = jws_creator()
         #create a new account
         self.kid = self.create_new_account()
-
+        #orders
+        self.orders = []
+        #challenges
+        self.challenges = []
 
     def get_domains_from_CA(self):
         #establish an https connection with pebble and get the dir
-        r = requests.get(f"https://{ACME_server_address}:{ACME_server_port}/dir", verify=self.pem_path)
+        r = requests.get(self.dir_address, verify=self.pem_path)
         return r.json()
 
     def get_nonce_from_CA(self):
@@ -43,8 +43,6 @@ class Client():
             "termsOfServiceAgreed": True
         }
         new_account_jws = self.jws.get_jws(payload_for_new_acc, self.get_nonce_from_CA(), self.CA_domains["newAccount"])
-        #remove spaces from the jws
-        new_account_jws = json.dumps(new_account_jws)
         #send the jws to the CA
         r = requests.post(self.CA_domains["newAccount"], data=new_account_jws, headers=headers, verify=self.pem_path)
         if r.status_code == 201:
@@ -54,7 +52,7 @@ class Client():
         else:
             throw("Error creating new account")
         
-    def get_challenge():
+    def placing_order(self, domain):
         """_summary_
         Get a challenge from the CA
             Returns:
@@ -62,7 +60,35 @@ class Client():
         """
         #establish an https connection and ask for a challenge from the CA
         pem_path = "project/pebble.minica.pem"
-        r = requests.post(CA_domains["getChallenge"], verify=pem_path)
+        #use the kid to sign the request
+        headers = {
+            "Content-Type": "application/jose+json",
+            "Kid": self.kid
+        }
+        #create the payload for the challenge
+        payload_for_challenge = {
+            "identifiers": [
+                {
+                    "type": "dns",
+                    "value": "example.com"
+                }
+            ]
+        }
+        #create the jws for the challenge
+        challenge_jws = self.jws.get_jws(payload_for_challenge, self.get_nonce_from_CA(), self.CA_domains["newOrder"], self.kid)
+        
+        r = requests.post(self.CA_domains["newOrder"], data=challenge_jws, headers=headers, verify=pem_path)
         return r.json()
-
-client = Client(ACME_server_address, ACME_server_port, pem_path)
+    
+    def challenge_accepted(self, challenge):
+        """_summary_
+        Takes on the awesome challenge, DNS or HTTP, I can handle it all!
+            Returns:
+            _type_: dict
+        """
+        if challenge["identifier"]["type"] == "dns":
+            solver = DNS_challenge_solver(challenge)
+            solver.solve_challenge()
+        elif challenge["identifier"]["type"] == "http":
+            solver = HTTP_challenge_solver(challenge)
+            solver.solve_challenge()

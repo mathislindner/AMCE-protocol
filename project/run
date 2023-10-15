@@ -1,6 +1,18 @@
 #!/bin/bash
-DIRECTORY=$(dirname "$0")
-echo "Changing to ${DIRECTORY}"
-cd  "$DIRECTORY" || exit 1
+#DIRECTORY=$(dirname "$0")
+#echo "Changing to ${DIRECTORY}"
+#cd  "$DIRECTORY" || exit 1
 
 echo "Run your project here."
+#get the arguments as a string and pass to main.py
+#DNS challenge
+python main.py dns01 \
+--dir https://localhost:14000/dir \
+--record 1.2.3.4 \
+--domain netsec.ethz.ch \
+--domain syssec.ethz.ch \
+#HTTP challenge
+#python main.py "http01 --dir https://example.com/dir --record 
+
+#just pass the arguments to main.py
+#python main.py "$@"
