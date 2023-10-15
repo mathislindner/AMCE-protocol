@@ -1,5 +1,7 @@
 import argparse
+import asyncio
 import client_server
+import DNS_server
 
 if __name__ == '__main__':
     """
@@ -31,12 +33,19 @@ if __name__ == '__main__':
     pem_path = r"C:\Users\Mathis\Documents\GitHub\netsecproj\mlindner-acme-project\project\pebble.minica.pem"
     
     #TODO:add logic for commands
-    #create a new client with account
+    #create servers
+    dns_server = DNS_server.DNSServer(args.record)
     client = client_server.Client(args.dir_url, pem_path)
-    #client orders a new certificate
+
+    #launch servers
+    dns_server.start()
+    
+    
+    #place order for certificate
     client.place_order(args.domain, args.challenge_type, args.record)
-    #client answers the challenge
-    client.check_queues()
+    
+    #loop to check on the orders and challenges
+    asyncio.run(client.check_queues())
     
     
     
