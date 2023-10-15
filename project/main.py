@@ -29,6 +29,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #additionals
     pem_path = r"C:\Users\Mathis\Documents\GitHub\netsecproj\mlindner-acme-project\project\pebble.minica.pem"
+    
+    #TODO:add logic for commands
     #create a new client with account
     client = client_server.Client(args.dir_url, pem_path)
+    #client orders a new certificate
+    client.place_order(args.domain, args.challenge_type, args.record)
+    #client answers the challenge
+    client.check_queues()
+    
+    
+    
     

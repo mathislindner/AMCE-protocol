@@ -69,6 +69,9 @@ class jws_creator():
         protected_b64 = base64.urlsafe_b64encode(json.dumps(protected_dict).encode("utf-8")).decode("utf-8").replace("=", "")
         #get the payload in base64
         payload_b64 = base64.urlsafe_b64encode(json.dumps(payload_dict).encode("utf-8")).decode("utf-8").replace("=", "")
+        #edge case for empty payload
+        if payload_dict == {}:
+            payload_b64 = ""
         #get the signature
         signature = self.get_signature(protected_b64, payload_b64)
         signature_b64 = base64.urlsafe_b64encode(signature).decode("utf-8").replace("=", "")
