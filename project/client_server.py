@@ -1,7 +1,9 @@
 import requests
 from dependencies.jws import jws_creator
 import json
+from time import sleep
 import queue
+import asyncio
 class Client():
     def __init__(self, dir_address, pem_path):
         #get the domains from the CA
@@ -114,62 +116,64 @@ class Client():
                 raise Exception("Error getting challenge", r.status_code, r.text)
     def complete_dns_challenge(self, challenge):
         """_summary_
-        Get a challenge from the CA
+        send the dns record to the dns server on port
             Returns:
             _type_: dict
         """
         print("solving dns challenge", challenge)
-        return
         #get the token from the challenge
         token = challenge["token"]
-        #get the key authorization
-        key_authorization = token + "." + self.jws.get_thumbprint()
-        #get the domain
-        domain = challenge["identifier"]["value"]
-        #get the dns record
-        record = challenge["dnsRecord"]
-        #get the kid
-        kid = self.kid
-        #create the payload for the challenge
-        payload_for_challenge = {
-            "keyAuthorization": key_authorization
+        #get url from the challenge
+        url = challenge["url"]        
+        #add to record.txt for dns server
+        #_acme-challenge.example.com. IN TXT "your-key-authorization-value-here"
+        with open("record.txt", "w") as f:
+            f.write(url + " IN TXT " + token)
+        #tell the ACME server that the challenge is complete
+        #use the kid to sign the request
+        headers = {
+            "Content-Type": "application/jose+json",
+            "Kid": self.kid
         }
+        #create the payload for the challenge
+        payload_for_order = {}
         #create the jws for the challenge
-        challenge_jws = self.jws.get_jws(payload_for_challenge, self.get_nonce_from_CA(), challenge["url"], kid)
-        #send the jws to the CA
-        r = requests.post(challenge["url"], data=challenge_jws, verify=self.pem_path)
+        challenge_jws = self.jws.get_jws(payload_for_order, self.get_nonce_from_CA(), url, self.kid)
+        #wait for the dns server to update
+        sleep(5)
+        r = requests.post(url, data=challenge_jws, headers=headers, verify=self.pem_path)
         if r.status_code == 200:
-            print("Challenge completed")
-            #add the challenge to the queue
+            print(r.json())
+            #add the order to the queue
             self.challenges.task_done()
         else:
             raise Exception("Error completing challenge", r.status_code, r.text)
-        
     def complete_http_challenge(self, challenge):
         pass
     
-    def check_queues(self):
-        #check the if the challenges are ready from the order queue
-        if not self.orders.empty():
-            #get the order
-            order = self.orders.get()
-            self.update_challenges_from_order(order)
-            
-        #complete challenges
-        if not self.challenges.empty():
-            #get the challenge
-            challenge = self.challenges.get()
-            #if the challenge is a dns challenge
-            if challenge["type"] == "dns-01":
-                #complete the dns challenge
-                self.complete_dns_challenge(challenge)
-            #if the challenge is a http challenge
-            elif challenge["type"] == "http-01":
-                #complete the http challenge
-                self.complete_http_challenge(challenge)
-            else:
-                #remove challenge from queue
-                print("Challenge type not supported", challenge["type"])
-                self.challenges.task_done()
-                #raise Exception("Challenge type not supported", challenge["type"])
-            
+    async def check_queues(self):
+        while True:
+            #check the if the challenges are ready from the order queue
+            if not self.orders.empty():
+                #get the order
+                order = self.orders.get()
+                self.update_challenges_from_order(order)
+                
+            #complete challenges
+            if not self.challenges.empty():
+                #get the challenge
+                challenge = self.challenges.get()
+                #if the challenge is a dns challenge
+                if challenge["type"] == "dns-01":
+                    #complete the dns challenge
+                    self.complete_dns_challenge(challenge)
+                #if the challenge is a http challenge
+                elif challenge["type"] == "http-01":
+                    #complete the http challenge
+                    self.complete_http_challenge(challenge)
+                else:
+                    #remove challenge from queue
+                    print("Challenge type not supported", challenge["type"])
+                    self.challenges.task_done()
+                    #raise Exception("Challenge type not supported", challenge["type"])
+                

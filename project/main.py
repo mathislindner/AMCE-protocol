@@ -38,7 +38,7 @@ if __name__ == '__main__':
     client = client_server.Client(args.dir_url, pem_path)
 
     #launch servers
-    dns_server.start()
+    #dns_server.start()
     
     
     #place order for certificate
