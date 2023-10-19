@@ -129,8 +129,11 @@ class Client():
         #_acme-challenge.example.com. IN TXT "your-key-authorization-value-here"
         with open("record.txt", "w") as f:
             f.write(url + " IN TXT " + token)
+        #print the record from the txt file to be sure it is correct
+        print("record.txt")
+        with open("record.txt", "r") as f:
+            print(f.read())
         #tell the ACME server that the challenge is complete
-        #use the kid to sign the request
         headers = {
             "Content-Type": "application/jose+json",
             "Kid": self.kid
@@ -149,6 +152,12 @@ class Client():
         else:
             raise Exception("Error completing challenge", r.status_code, r.text)
     def complete_http_challenge(self, challenge):
+        #get the token from the challenge
+        token = challenge["token"]
+        #get url from the challenge
+        url = challenge["url"]
+        #TODO: Do i have to add it to the DNS record? or how will the resolver know where to go?
+        #invoke the http server
         pass
     
     async def check_queues(self):
