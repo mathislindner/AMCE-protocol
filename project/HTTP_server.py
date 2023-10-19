@@ -1,6 +1,7 @@
 #server to handle http requests to answer the challenges
 import flask
 import json
+import argparse
 
 app = flask.Flask(__name__)
 challs = {}
@@ -23,6 +24,8 @@ def answer_challenge_post():
     
 
 
-def start_HTTP_server(record):
-    app.run(host=record, port=5002)
-    return app
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Start the http server')
+    parser.add_argument('--record', type=str, help='The ip address of the dns server')
+    args = parser.parse_args()
+    app.run(host=args.record, port=5002)

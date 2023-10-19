@@ -1,6 +1,7 @@
 from dnslib.server import BaseResolver, DNSServer, DNSHandler, DNSLogger
 from dnslib import RR
 from time import sleep
+import argparse
 
 # Define a custom DNS handler
 class SimpleAddResolver(BaseResolver):
@@ -21,14 +22,14 @@ class SimpleAddResolver(BaseResolver):
             reply.add_answer(*self.records["404"])
         return reply
     
-
-def start_DNS_server(default_a_record_ip):
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Start the dns server')
+    parser.add_argument('--record', type=str, help='The ip address of the dns server')
+    args = parser.parse_args()
     resolver = SimpleAddResolver()
     logger = DNSLogger(prefix=False)
     # Create a DNS server instance on ip_address and port 10053
     print("DNS server is running on port 10035...")
-    dns_server = DNSServer(resolver, port=10035, address=default_a_record_ip, logger=logger)
+    dns_server = DNSServer(resolver, port=10035, address=args.record, logger=logger)
     dns_server.start_thread()
-    
-    return dns_server
     

@@ -3,6 +3,7 @@ import asyncio
 import client_server
 import DNS_server
 import HTTP_server
+import subprocess
 
 if __name__ == '__main__':
     """
@@ -34,9 +35,9 @@ if __name__ == '__main__':
     pem_path = r"C:\Users\Mathis\Documents\GitHub\netsecproj\mlindner-acme-project\project\pebble.minica.pem"
     
     #TODO:add logic for commands
-    #create servers
-    dns_server = DNS_server.start_DNS_server(args.record)
-    http_server = HTTP_server.start_HTTP_server(args.record)
+    #start server through the command line as a subprocess
+    subprocess.Popen(["python", "DNS_server.py", "--record", args.record])
+    subprocess.Popen(["python", "HTTP_server.py", "--record", args.record])
     client = client_server.Client(args.dir_url, pem_path)
 
     #launch servers
