@@ -6,13 +6,13 @@
 echo "Run your project here."
 #get the arguments as a string and pass to main.py
 #DNS challenge
-python main.py dns01 \
---dir https://localhost:14000/dir \
---record localhost \
---domain netsec.ethz.ch \
---domain syssec.ethz.ch \
+#python main.py dns01 \
+#--dir https://localhost:14000/dir \
+#--record localhost \
+#--domain netsec.ethz.ch \
+#--domain syssec.ethz.ch \
 #HTTP challenge
 #python main.py "http01 --dir https://example.com/dir --record 
 
 #just pass the arguments to main.py
-#python main.py "$@"
+python main.py "$@"
