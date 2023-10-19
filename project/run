@@ -15,4 +15,4 @@ echo "Run your project here."
 #python main.py "http01 --dir https://example.com/dir --record 
 
 #just pass the arguments to main.py
-python main.py "$@"
+python project/main.py "$@"
