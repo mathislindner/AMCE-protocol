@@ -1,0 +1,5 @@
+dnslib==0.9.23
+Flask==2.2.3
+crypography==41.0.4
+requests==2.31.0
+```
