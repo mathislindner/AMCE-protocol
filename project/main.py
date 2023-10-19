@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import client_server
 import DNS_server
+import HTTP_server
 
 if __name__ == '__main__':
     """
@@ -35,6 +36,7 @@ if __name__ == '__main__':
     #TODO:add logic for commands
     #create servers
     dns_server = DNS_server.start_DNS_server(args.record)
+    http_server = HTTP_server.start_HTTP_server(args.record)
     client = client_server.Client(args.dir_url, pem_path)
 
     #launch servers
