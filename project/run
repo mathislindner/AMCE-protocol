@@ -8,7 +8,7 @@ echo "Run your project here."
 #DNS challenge
 python main.py dns01 \
 --dir https://localhost:14000/dir \
---record 1.2.3.4 \
+--record localhost \
 --domain netsec.ethz.ch \
 --domain syssec.ethz.ch \
 #HTTP challenge

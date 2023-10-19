@@ -34,7 +34,7 @@ if __name__ == '__main__':
     
     #TODO:add logic for commands
     #create servers
-    dns_server = DNS_server.DNSServer(args.record)
+    dns_server = DNS_server.start_DNS_server(args.record)
     client = client_server.Client(args.dir_url, pem_path)
 
     #launch servers

@@ -1,35 +1,34 @@
-from dnslib.server import DNSServer, DNSHandler
-from dnslib.dns import DNSRecord
+from dnslib.server import BaseResolver, DNSServer, DNSHandler, DNSLogger
+from dnslib import RR
 from time import sleep
-# Define a custom DNS handler
-class SimpleDNSServerHandler(DNSHandler):
 
-    def __init__(self, request, client_address, server):
-        super().__init__(request, client_address, server)
+# Define a custom DNS handler
+class SimpleAddResolver(BaseResolver):
+    def __init__(self):
+        pass
 
     def resolve(self, request, handler):
-        # This is where you handle DNS queries and generate responses.
-        # For a simple example, we'll return a hardcoded A record.
-        #read the record from the file
-        records = []
-        with open("record.txt", "r") as file:
-            records = file.readlines()
-        #find the record that matches the query
-        for record in records:
-            if request.q.qname == record.split(" ")[0]:
-                #create the response
-                reply = DNSRecord(DNSHeader(id=request.header.id, qr=1, aa=1, ra=1), q=request.q)
-                reply.add_answer(*RR.fromZone(record))
-                return reply
-        #if no record is found, return a 404
-        reply = DNSRecord(DNSHeader(id=request.header.id, qr=1, aa=1, ra=1), q=request.q)
-        reply.header.rcode = 3
+        records_string =  open(file="record.txt", mode="r").read()
+        records = RR.fromZone(records_string)
+        reply = request.reply()
+        qname = request.q.qname
+        
+        #check if the domain is in the records
+        if qname in self.records:
+            reply.add_answer(*self.records[qname])
+        else:
+            #if not, return the 404
+            reply.add_answer(*self.records["404"])
         return reply
+    
 
-if __name__ == '__main__':
-    # Create a DNS server instance on ip_address and port 53
-    server = DNSServer(SimpleDNSServerHandler, port=10035)
+def start_DNS_server(default_a_record_ip):
+    resolver = SimpleAddResolver()
+    logger = DNSLogger(prefix=False)
+    # Create a DNS server instance on ip_address and port 10053
     print("DNS server is running on port 10035...")
-    #start the server in the background
-    server.start()
+    dns_server = DNSServer(resolver, port=10035, address=default_a_record_ip, logger=logger)
+    dns_server.start_thread()
+    
+    return dns_server
     
