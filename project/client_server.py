@@ -170,9 +170,8 @@ class Client():
         #get the token from the challenge
         token = challenge["token"]
         #form a post request to the http server including the token and the authorization
-        data = {'token': token, 'authorization': authorization}
         url = self.http_address + "/allocate_challenge"
-        url = url + "?token=" + token + "&authorization=" + authorization
+        url = url + "?path=" + token + "&authorization=" + authorization
         r = requests.get(url)
         return True
     
@@ -184,7 +183,6 @@ class Client():
             order = self.orders.get()
             self.update_challenges_from_order(order)
         print("Challenges in queue", self.challenges.qsize())
-        print(self.challenges.queue)
         #complete challenges
         while not self.challenges.empty():
             challenge = self.challenges.get()
@@ -192,6 +190,7 @@ class Client():
             if challenge["type"] == "dns-01":
                 #TODO:we are testing just the http ATM
                 self.challenges.task_done()
+                continue
                 #complete the dns challenge
                 self.complete_dns_challenge(challenge, key_authorization)
             elif challenge["type"] == "http-01":

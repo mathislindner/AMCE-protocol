@@ -38,9 +38,9 @@ if __name__ == '__main__':
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
-    #subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
+    subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
     #wait for the servers to start
-    sleep(2)
+    sleep(1)
     #create account for client if it doesn't exist and set some constants
     client = client_server.Client(args.dir_url, pem_path, args.record)
     

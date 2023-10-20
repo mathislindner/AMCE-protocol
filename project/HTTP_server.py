@@ -6,20 +6,20 @@ import argparse
 app = flask.Flask(__name__)
 challs = {}
 
-@app.route("/.well-known/acme-challenge/<token>")
-def answer_challenge(token):
-    if token in challs:
-        return challs[token]
+@app.route('/.well-known/acme-challenge/<path>', methods=['GET'])
+def answer_challenge(path):
+    if path in challs:
+        return challs[path]
     return "404"
     
 @app.route("/allocate_challenge", methods=["GET"])
 def allocate_challenge():
     if flask.request.method == 'GET':
         #read from url
-        token = flask.request.args.get('token')
+        path = flask.request.args.get('path')
         key_auth = flask.request.args.get('authorization')
-        if token != None and key_auth != None:
-            challs[token] = key_auth
+        if path != None and key_auth != None:
+            challs[path] = key_auth
             return json.dumps({"status": "ok"})
     else:
         return json.dumps({"status": "error"})
