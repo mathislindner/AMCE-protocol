@@ -32,8 +32,7 @@ if __name__ == '__main__':
     parser.add_argument("--revoke", help="If present, your application should immediately revoke the certificate after obtaining it. In both cases, your application should start its HTTPS server and set it up to use the newly obtained certificate.")
     args = parser.parse_args()
     #additionals
-    pem_path = r"C:\Users\Mathis\Documents\GitHub\netsecproj\mlindner-acme-project\project\pebble.minica.pem"
-    
+    pem_path = "project/cert.pem"
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
