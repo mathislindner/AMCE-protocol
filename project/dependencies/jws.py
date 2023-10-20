@@ -22,7 +22,16 @@ class jws_creator():
             "x": base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
             "y": base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
         }
-        
+    def get_jwk_thumbprint(self):
+        return {
+            'crv': 'P-256',
+            'kty': 'EC',
+            'x': base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
+            'y': base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
+        }
+    def get_jwk_thumbprint_encoded(self):
+        return base64.urlsafe_b64encode(json.dumps(self.get_jwk_thumbprint()).encode("utf-8")).decode("utf-8").replace("=", "")
+    
     def get_signature(self, protected_b64, payload_b64):
         """_summary_
         Get the signature

@@ -12,7 +12,7 @@ def answer_challenge(token):
         return challs[token]
     return "404"
     
-@app.route('/http_challenge', methods=["POST"])
+@app.route('/http_challenge')
 def answer_challenge_post():
     path = flask.request.form["path"]
     key_auth = flask.request.form["key_auth"]
