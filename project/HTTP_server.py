@@ -12,16 +12,17 @@ def answer_challenge(token):
         return challs[token]
     return "404"
     
-@app.route('/http_challenge')
-def answer_challenge_post():
-    path = flask.request.form["path"]
-    key_auth = flask.request.form["key_auth"]
-    if path != None and key_auth != None:
-        challs[path] = key_auth
-        return json.dumps({"status": "ok"})
+@app.route("/allocate_challenge", methods=["GET"])
+def allocate_challenge():
+    if flask.request.method == 'GET':
+        #read from url
+        token = flask.request.args.get('token')
+        key_auth = flask.request.args.get('authorization')
+        if token != None and key_auth != None:
+            challs[token] = key_auth
+            return json.dumps({"status": "ok"})
     else:
         return json.dumps({"status": "error"})
-    
 
 
 if __name__ == "__main__":

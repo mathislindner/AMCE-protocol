@@ -103,7 +103,6 @@ class Client():
             Returns:
             _type_: dict
         """
-        print(order)
         #access authorization url
         for auth_url in order["authorizations"]:
             #add the kid to the header
@@ -170,9 +169,11 @@ class Client():
     def complete_http_challenge(self, challenge, authorization):
         #get the token from the challenge
         token = challenge["token"]
-        uri = token + "&keyauth=" + authorization
-        #talk to the http server
-        r = requests.get(self.http_address + "/http_challenge?path=" + uri)
+        #form a post request to the http server including the token and the authorization
+        data = {'token': token, 'authorization': authorization}
+        url = self.http_address + "/allocate_challenge"
+        url = url + "?token=" + token + "&authorization=" + authorization
+        r = requests.get(url)
         return True
     
     
@@ -189,6 +190,8 @@ class Client():
             challenge = self.challenges.get()
             key_authorization = challenge["token"] + "." + self.jws.get_jwk_thumbprint_encoded()
             if challenge["type"] == "dns-01":
+                #TODO:we are testing just the http ATM
+                self.challenges.task_done()
                 #complete the dns challenge
                 self.complete_dns_challenge(challenge, key_authorization)
             elif challenge["type"] == "http-01":
@@ -201,7 +204,9 @@ class Client():
                 #raise Exception("Challenge type not supported", challenge["type"])
         #wait for the servers to update
         sleep(2)
-        #Check if the Challenges are complete
+        #tell the CA that the challenges are complete
+        self
+        
         #revoke cert
         if revoke:
             self.revoke_cert()
