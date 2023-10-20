@@ -4,6 +4,7 @@ import json
 from time import sleep
 import queue
 import asyncio
+import os
 class Client():
     def __init__(self, dir_address, pem_path):
         #get the domains from the CA
@@ -21,6 +22,7 @@ class Client():
 
     def get_domains_from_CA(self):
         #establish an https connection with pebble and get the dir
+        print("current path " + os.getcwd())
         r = requests.get(self.dir_address, verify=self.pem_path)
         return r.json()
 

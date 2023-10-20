@@ -4,6 +4,7 @@ import client_server
 import DNS_server
 import HTTP_server
 import subprocess
+import os
 
 if __name__ == '__main__':
     """
@@ -32,7 +33,8 @@ if __name__ == '__main__':
     parser.add_argument("--revoke", help="If present, your application should immediately revoke the certificate after obtaining it. In both cases, your application should start its HTTPS server and set it up to use the newly obtained certificate.")
     args = parser.parse_args()
     #additionals
-    pem_path = "project/cert.pem"
+    pem_path = os.path.abspath("project/cert.pem")
+    print("pem absolute path: ", pem_path)
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
