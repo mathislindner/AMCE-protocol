@@ -9,7 +9,7 @@ class SimpleAddResolver(BaseResolver):
         pass
 
     def resolve(self, request, handler):
-        records_string =  open(file="record.txt", mode="r").read()
+        records_string =  open(file="project/record.txt", mode="r").read()
         records = RR.fromZone(records_string)
         reply = request.reply()
         qname = request.q.qname
