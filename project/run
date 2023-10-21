@@ -4,12 +4,5 @@
 #cd  "$DIRECTORY" || exit 1
 
 echo "Run your project here."
-#get the arguments as a string and pass to main.py
-#DNS challenge
-#python project/main.py dns01 --dir https://localhost:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch 
-#HTTP challenge
-python project/main.py http01 --dir https://localhost:14000/dir --record localhost --domain netsec.ethz.ch
-
-
 #just pass the arguments to main.py
-#spython project/main.py "$@"
+python project/main.py "$@"

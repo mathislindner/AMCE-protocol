@@ -1,1 +1,1 @@
-https://localhost:14000/chalZ/mZmmMWDmsHwotaKZu49RuMwT5LmZ53tftsa2Ruk15Ik IN TXT Y38de8ZQxRwQEo-_EUMKxiXHNMayuLLcF0zHNxjm5cA
+. IN A localhost
