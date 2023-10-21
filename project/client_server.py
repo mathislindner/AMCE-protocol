@@ -13,15 +13,13 @@ class Client():
         self.dns_address = "http://" + record + ":10035"
         self.http_address = "http://" + record + ":5002"
         self.CA_domains = self.get_domains_from_CA()
-        #create a jws signer
+        #create a jws signer object
         self.jws = jws_creator()
-        #create a new account
         self.nonce = self.get_nonce_from_CA()
         self.kid = self.create_new_account()
-        #orders
         self.orders = queue.Queue()
-        #challenges
         self.challenges = queue.Queue()
+        self.certs = []
 
     def get_domains_from_CA(self):
         #establish an https connection with pebble and get the dir
@@ -41,7 +39,6 @@ class Client():
             Returns:
             _type_: str, str
         """
-        #set header to application/jose+json
         headers = {
             "Content-Type": "application/jose+json"
         }
@@ -175,6 +172,18 @@ class Client():
         r = requests.get(url)
         return True
     
+    def finalize_order(self, order):
+        """
+        Finalize the order by asking the CA to issue the certificate
+        """
+        csr = self.get_csr(order.domains)
+        
+    
+    def request_certificate_from_order(self, order):
+        pass
+    
+    def get_certificate(self):
+        pass
     
     #function to do it sequentially
     def answer_challenges(self, revoke=False):
@@ -195,6 +204,7 @@ class Client():
                 self.complete_dns_challenge(challenge, key_authorization)
             elif challenge["type"] == "http-01":
                 #complete the http challenge
+                print(challenge)
                 self.complete_http_challenge(challenge, key_authorization)
             else:
                 print ("Challenge type not supported", challenge["type"])
@@ -203,12 +213,13 @@ class Client():
                 #raise Exception("Challenge type not supported", challenge["type"])
         #wait for the servers to update
         sleep(2)
-        #tell the CA that the challenges are complete
-        self
-        
+        for order in self.orders.queue:
+            self.finalize_order(order)
+            self.certificates.append(self.request_certificate_from_order(order))
+            
         #revoke cert
         if revoke:
-            self.revoke_cert()
+            self.revoke_certs()
         
     def revoke_cert(self):
         print("Revoking cert")

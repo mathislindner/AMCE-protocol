@@ -35,6 +35,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #additionals
     pem_path = "project/pebble.minica.pem"
+    #create DNS entry for the record in the record.txt file
+    with open(file="project/record.txt", mode="w") as f:
+        f.write(f". IN A {args.record}")
+    
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])

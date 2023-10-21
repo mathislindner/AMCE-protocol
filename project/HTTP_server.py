@@ -6,12 +6,14 @@ import argparse
 app = flask.Flask(__name__)
 challs = {}
 
+
 @app.route('/.well-known/acme-challenge/<path>', methods=['GET'])
 def answer_challenge(path):
     if path in challs:
         return challs[path]
     return "404"
     
+#could have also just created a text file with the challenges and read from it but this is more fun
 @app.route("/allocate_challenge", methods=["GET"])
 def allocate_challenge():
     if flask.request.method == 'GET':
