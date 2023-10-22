@@ -156,7 +156,6 @@ class Client():
                 for challenge in challenges:
                     #add the challenge to the queue
                     self.challenges_todo.put(challenge)
-                    print("Challenge added to queue")
             else:
                 #TODO:retry
                 raise Exception("Error getting challenge", r.status_code, r.text)
@@ -184,20 +183,77 @@ class Client():
         url = self.http_address + "/allocate_challenge"
         url = url + "?path=" + token + "&authorization=" + authorization
         r = requests.get(url)
+        #verify that the server managed to allocate the challenge
+        if r.status_code == 200:
+            url = self.http_address + "/.well-known/acme-challenge/" + token
+            r = requests.get(url)
+            if r.status_code == 200:
+                #check if the authorization is in the response
+                if authorization in r.text:
+                    print("HTTP challenge completed")
         return True
     
-    """finalize (required, string):  A URL that a CSR must be POSTed to once
-    all of the order's authorizations are satisfied to finalize the
-    order.  The result of a successful finalization will be the
-    population of the certificate URL for the order.
+    """Once the client believes it has fulfilled the server's requirements,
+   it should send a POST request to the order resource's finalize URL.
+   The POST body MUST include a CSR:
     """
     def finalize_order(self, order):
         """
         Finalize the order by asking the CA to issue the certificate after all the challenges are done
         """
-        print("Finalizing order")
+        #get the csr
         csr = generate_CSR.get_csr(order.domains)
+        #communicate to finalize order url
+        headers = {
+            "Content-Type": "application/jose+json",
+            "Kid": self.kid
+        }
+        #create the payload to finalize the order
+        payload_for_order = {
+            "csr": csr
+        }
+        #create the jws for the challenge
+        signed_data = self.jws.get_jws(payload_for_order, self.nonce, order.finalize, self.kid)
+        r = requests.post(order.finalize, data=signed_data, headers=headers, verify=self.pem_path)
+        self.nonce = r.headers["Replay-Nonce"]
+        if r.status_code == 200:
+            #retrun the certificate url to download the certificate
+            return r.json()["certificate"]
+        
+        elif r.json()["type"] == "urn:ietf:params:acme:error:badNonce":
+            #retry the request
+            print("Bad nonce, retrying...")
+            self.finalize_order(order)
+        else:
+            raise Exception("Error finalizing order", r.status_code, r.text)
 
+    def download_certificate(self, certificate_url):
+        """
+        Download the certificate from the url
+        """
+        r = requests.get(certificate_url)
+        if r.status_code == 200:
+            #save the certificate
+            certificate_file = open("project/certificate.crt", "w")
+            certificate_file.write(r.text)
+            certificate_file.close()
+            return True
+        else:
+            raise Exception("Error downloading certificate", r.status_code, r.text)
+        
+    def start_https_server(self, certificat_path, key_path, domain):
+        """
+        Start the https server to listen for the challenges
+        """
+        #create the server
+        httpd = HTTPServer((self.http_address, self.http_port), MyHandler)
+        #set the certificate and the key
+        httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certificat_path, keyfile=key_path, server_side=True)
+        #set the domain
+        httpd.domain = domain
+        #start the server
+        httpd.serve_forever()
+        
     #function to do it sequentially
     def answer_challenges(self, challenge_type, revoke=False):
         #get orders
@@ -222,23 +278,20 @@ class Client():
                     self.challenges_executed.put(challenge)
                     self.challenges_todo.get()
                 else:
-                    print ("Challenge type not supported", challenge["type"])
-                    #remove the challenge from the queue
+                    #remove the challenge from the queue since we were not ask to do it
                     self.challenges_todo.get()
-                    #raise Exception("Challenge type not supported", challenge["type"])
             #wait for the servers to update
             #TODO: check the status of the authorizations
             if not self.check_all_challenges():
                 raise Exception("Error completing challenges")
                 exit()
-            
-            #since all the challenges are completed, finalize the order
-            self.finalize_order(order)
-            
-        #revoke cert
-        if revoke:
-            self.revoke_certs()
-        
+            else:
+                #since all the challenges are completed, finalize the order
+                print("finalizing order")
+                certificate_url = self.finalize_order(order)
+                self.download_certificate(certificate_url, order.domains)
+
+
     def revoke_cert(self):
         print("Revoking cert")
         pass
