@@ -28,8 +28,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     resolver = SimpleAddResolver()
     logger = DNSLogger(prefix=False)
-    # Create a DNS server instance on ip_address and port 10053
-    print("DNS server is running on port 10035...")
     dns_server = DNSServer(resolver, port=10035, address=args.record, logger=logger)
     dns_server.start_thread()
+    print("DNS server is running on " + args.record + ":10035")
     
