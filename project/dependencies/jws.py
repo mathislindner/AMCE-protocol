@@ -23,14 +23,14 @@ class jws_creator():
             "y": base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
         }
     def get_jwk_thumbprint(self):
-        return {
+        return json.dumps({
             'crv': 'P-256',
             'kty': 'EC',
             'x': base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
             'y': base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
-        }
+        })
     def get_jwk_thumbprint_encoded(self):
-        return base64.urlsafe_b64encode(json.dumps(self.get_jwk_thumbprint()).encode("utf-8")).decode("utf-8").replace("=", "")
+        return base64.urlsafe_b64encode(self.get_jwk_thumbprint().encode("utf-8")).decode("utf-8").replace("=", "")
     
     def get_signature(self, protected_b64, payload_b64):
         """_summary_
@@ -92,3 +92,44 @@ class jws_creator():
             "signature": signature_b64
         }
         return json.dumps(jws)
+    
+    def generate_CSR(self, domains):
+        """_summary_
+        Generate a certificate signing request
+        Returns:
+            _type_: str
+        """
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.backends import default_backend
+        #hadnle wildcard domains
+        domain = domains[0]
+        if domain[0][:2] == "*.":
+            domain = domain[0][2:]
+        #create the private key
+        server_private_key = ec.generate_private_key(ec.SECP256R1())
+        #save the private key
+        path_private_key = "certs/server_private_key" + domain + ".pem"
+        with open(path_private_key, "wb") as f:
+            f.write(private_key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.TraditionalOpenSSL, encryption_algorithm=serialization.NoEncryption()))
+
+        #create the csr
+        csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, u"CH"),
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"),
+            x509.NameAttribute(NameOID.LOCALITY_NAME, u"Zurich"),
+            x509.NameAttribute(NameOID.COMMON_NAME, domain),
+        ])).add_extension(
+            x509.SubjectAlternativeName([
+                x509.DNSName(domain) for domain in domains
+            ]),
+            critical=False,
+        ).sign(server_private_key, hashes.SHA256(), default_backend())
+        #save the csr
+        path_csr = "certs/CSR" + domain + ".csr"
+        with open(path_csr, "wb") as f:
+            f.write(csr.public_bytes(serialization.Encoding.PEM))
+        return path_csr
+    

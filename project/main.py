@@ -37,7 +37,7 @@ if __name__ == '__main__':
     pem_path = "project/pebble.minica.pem"
     #create DNS entry for the record in the record.txt file
     with open(file="project/record.txt", mode="w") as f:
-        f.write(f". IN A {args.record}")
+        f.write(f". IN A {args.record}\n")
     
     #TODO:add logic for commands
     #start server through the command line as a subprocess
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     
     #place order for certificate
     client.place_order(args.domain, args.challenge_type, args.record)
-    client.answer_challenges(revoke=args.revoke)
+    client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
     #loop to check on the orders and challenges
     #asyncio.run(client.check_queues(revoke=args.revoke))
     

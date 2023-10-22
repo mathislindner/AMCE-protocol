@@ -94,41 +94,13 @@ class Client():
             #hope that this doesn't start an infinite loop :D
         else:
             raise Exception("Error placing order", r.status_code, r.text)
-        
-    #similar to placing the order
-    def check_all_challenges(self):
-        headers = {
-            "Content-Type": "application/jose+json",
-            "Kid": self.kid
-        }
-        while not self.challenges_executed.empty():
-            challenge_to_check = self.challenges_executed.queue[0]
-            #create the payload to check the order status
-            payload_for_order = {}
-            #create the jws for the challenge
-            order_jws = self.jws.get_jws(payload_for_order, self.nonce, challenge_to_check["url"], self.kid)
-            r = requests.post(challenge_to_check["url"], data=order_jws, headers=headers, verify=self.pem_path)
-            self.nonce = r.headers["Replay-Nonce"]
-            if r.status_code == 200:
-                #check if the challenge is valid
-                if r.json().get("status") == "valid":
-                    print("Challenge valid")
-                    self.challenges_executed.get()
-                else:
-                    print("Challenge not valid")
-                    #retry the challenge
-                    sleep(3)
-        return True
-                
-            
-        
+      
     def check_authorization_url(self, auth_url):
         """_summary_
         Check on all status of all the authorizations
             Returns:
             _type_: list
         """
-        statuses = []
         #send the request to the to get the status
         headers = {
             "Content-Type": "application/jose+json",
@@ -137,22 +109,29 @@ class Client():
         #create the payload to check the order status
         payload_for_order = {}
         #create the jws for the challenge
-        for auth_url in auth_urls:
-            order_jws = self.jws.get_jws(payload_for_order, self.nonce, auth_url, self.kid)
-            r = requests.post(auth_url, data=order_jws, headers=headers, verify=self.pem_path)
-            self.nonce = r.headers["Replay-Nonce"]
-            if r.status_code == 200:
-                statuses.append(r.json().get("status"))
-            elif r.json()["type"] == "urn:ietf:params:acme:error:badNonce":
-                #retry the request
-                print("Bad nonce, retrying")
-                self.check_authorization_urls(auth_urls)
-                #hope that this doesn't start an infinite loop :D
+        signed_data = self.jws.get_jws(payload_for_order, self.nonce, auth_url, self.kid)
+        r = requests.post(auth_url, data=signed_data, headers=headers, verify=self.pem_path)
+        self.nonce = r.headers["Replay-Nonce"]
+        if r.status_code == 200:
+            print("Status of authorization: " + r.json().get("status"))
+            return r.json().get("status")
+        elif r.json()["type"] == "urn:ietf:params:acme:error:badNonce":
+            #retry the request
+            print("Bad nonce, retrying...")
+            self.check_authorization_url(auth_url)
+        else:
+            raise Exception("Error checking order status", r.status_code, r.text)
+    
+    #similar to placing the order
+    def check_all_challenges(self):
+        while not self.challenges_executed.empty():
+            challenge_to_check = self.challenges_executed.queue[0]
+            if self.check_authorization_url(challenge_to_check["url"]) == "valid":
+                self.challenges_executed.get()
             else:
-                raise Exception("Error checking order status", r.status_code, r.text)
-        exit()
-        
-        
+                print("Challenge not valid yet")
+                sleep(5)
+      
     def update_challenges_from_order(self, order):
         """_summary_
         Get a challenge from the CA
@@ -193,10 +172,9 @@ class Client():
         token = challenge["token"]
         #get url from the challenge
         url = challenge["url"]
-        #add to record.txt for dns server
         #_acme-challenge.example.com. IN TXT "your-key-authorization-value-here"
-        rec_file = open("project/record.txt", "w")
-        rec_file.write(url + " IN TXT " + authorization)  
+        rec_file = open("project/record.txt", "a")
+        rec_file.write(url + " IN TXT " + authorization+"\n")  
         return True
         
     def complete_http_challenge(self, challenge, authorization):
@@ -215,20 +193,13 @@ class Client():
     """
     def finalize_order(self, order):
         """
-        Finalize the order by asking the CA to issue the certificate
+        Finalize the order by asking the CA to issue the certificate after all the challenges are done
         """
         print("Finalizing order")
-        csr = self.get_csr(order.domains)
-        
-    
-    def request_certificate_from_order(self, order):
-        pass
-    
-    def get_certificate(self):
-        pass
-    
+        csr = generate_CSR.get_csr(order.domains)
+
     #function to do it sequentially
-    def answer_challenges(self, revoke=False):
+    def answer_challenges(self, challenge_type, revoke=False):
         #get orders
         while not self.orders.empty():
             order = self.orders.get()
@@ -239,12 +210,14 @@ class Client():
             while not self.challenges_todo.empty():
                 challenge = self.challenges_todo.queue[0]
                 key_authorization = challenge["token"] + "." + self.jws.get_jwk_thumbprint_encoded()
-                if challenge["type"] == "dns-01":
+                if challenge["type"] == "dns-01" and challenge_type == "dns01":
                     #complete the dns challenge
                     self.complete_dns_challenge(challenge, key_authorization)
                     self.challenges_executed.put(challenge)
                     self.challenges_todo.get()
-                elif challenge["type"] == "http-01":
+                elif challenge["type"] == "http-01" and challenge_type == "http01":
+                    #add the domain to the DNS server to point to the http server
+                    
                     self.complete_http_challenge(challenge, key_authorization)
                     self.challenges_executed.put(challenge)
                     self.challenges_todo.get()

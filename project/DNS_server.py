@@ -13,7 +13,7 @@ class SimpleAddResolver(BaseResolver):
         records = RR.fromZone(records_string)
         reply = request.reply()
         qname = request.q.qname
-        
+        print("handling request for: " + str(qname))
         #check if the domain is in the records
         if qname in self.records:
             reply.add_answer(*self.records[qname])
