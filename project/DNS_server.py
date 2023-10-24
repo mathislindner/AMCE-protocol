@@ -6,7 +6,8 @@ import argparse
 # Define a custom DNS handler
 class SimpleAddResolver(BaseResolver):
     def __init__(self):
-        pass
+        #call the super constructor
+        super().__init__()
 
     def resolve(self, request, handler):
         records_string =  open(file="project/record.txt", mode="r").read()
@@ -31,4 +32,3 @@ if __name__ == "__main__":
     dns_server = DNSServer(resolver, port=10035, address=args.record, logger=logger)
     dns_server.start_thread()
     print("DNS server is running on " + args.record + ":10035")
-    

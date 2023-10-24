@@ -94,8 +94,8 @@ class Client():
             #hope that this doesn't start an infinite loop :D
         else:
             raise Exception("Error placing order", r.status_code, r.text)
-      
-    def check_authorization_url(self, auth_url):
+    
+    def check_challenge_url(self, auth_url):
         """_summary_
         Check on all status of all the authorizations
             Returns:
@@ -118,15 +118,17 @@ class Client():
         elif r.json()["type"] == "urn:ietf:params:acme:error:badNonce":
             #retry the request
             print("Bad nonce, retrying...")
-            self.check_authorization_url(auth_url)
+            self.check_challenge_url(auth_url)
         else:
             raise Exception("Error checking order status", r.status_code, r.text)
     
-    #similar to placing the order
+
     def check_all_challenges(self):
+        sleep(5)
         while not self.challenges_executed.empty():
             challenge_to_check = self.challenges_executed.queue[0]
-            if self.check_authorization_url(challenge_to_check["url"]) == "valid":
+            print("Checking challenge: " + challenge_to_check["type"])
+            if self.check_challenge_url(challenge_to_check["url"]) == "valid":
                 self.challenges_executed.get()
             else:
                 print("Challenge not valid yet")
@@ -160,7 +162,7 @@ class Client():
                 #TODO:retry
                 raise Exception("Error getting challenge", r.status_code, r.text)
             
-    def complete_dns_challenge(self, challenge, authorization):
+    def complete_dns_challenge(self, challenge, authorization_key):
         """_summary_
         send the dns record to the dns server on port
             Returns:
@@ -173,15 +175,15 @@ class Client():
         url = challenge["url"]
         #_acme-challenge.example.com. IN TXT "your-key-authorization-value-here"
         rec_file = open("project/record.txt", "a")
-        rec_file.write(url + " IN TXT " + authorization+"\n")  
+        rec_file.write(url + " IN TXT " + authorization_key +"\n")  
         return True
         
-    def complete_http_challenge(self, challenge, authorization):
+    def complete_http_challenge(self, challenge, authorization_key):
         #get the token from the challenge
         token = challenge["token"]
         #form a post request to the http server including the token and the authorization
         url = self.http_address + "/allocate_challenge"
-        url = url + "?path=" + token + "&authorization=" + authorization
+        url = url + "?path=" + token + "&authorization=" + authorization_key
         r = requests.get(url)
         #verify that the server managed to allocate the challenge
         if r.status_code == 200:
@@ -189,8 +191,8 @@ class Client():
             r = requests.get(url)
             if r.status_code == 200:
                 #check if the authorization is in the response
-                if authorization in r.text:
-                    print("HTTP challenge completed")
+                if authorization_key in r.text:
+                    print("HTTP challenge added to the https server")
         return True
     
     """Once the client believes it has fulfilled the server's requirements,
@@ -259,6 +261,7 @@ class Client():
         #get orders
         while not self.orders.empty():
             order = self.orders.get()
+            print("Order", order)
             self.update_challenges_from_order(order)
             print("Challenges in queue", self.challenges_todo.qsize())
             #created 2 different queues to keep track of the challenges that we think are done
@@ -273,7 +276,6 @@ class Client():
                     self.challenges_todo.get()
                 elif challenge["type"] == "http-01" and challenge_type == "http01":
                     #add the domain to the DNS server to point to the http server
-                    
                     self.complete_http_challenge(challenge, key_authorization)
                     self.challenges_executed.put(challenge)
                     self.challenges_todo.get()
