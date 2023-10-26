@@ -1,11 +1,15 @@
 import requests
 import json
+import time
+import logging
 #CRYPTOGRAPHY
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 import base64
 
+#set logging level
+logging.basicConfig(level=logging.INFO)
 class Authentificator():
     def __init__(self):
         self.private_key, self.public_key = self.create_keys()
@@ -81,6 +85,7 @@ class Authentificator():
 
 class Client():
     def __init__(self, dir_url, pem_path, record):
+        self.logger = logging.getLogger("ACMECLIENT")
         self.pem_path = pem_path
         self.record = record
         self.CA_domains = requests.get(dir_url, verify=self.pem_path).json()
@@ -89,6 +94,10 @@ class Client():
         
         self.dns_address = "http://" + record + ":10035"
         self.http_address = "http://" + record + ":5002"
+        
+        self.orders = []
+        self.authz = []
+        self.challenges = []
         
         self.kid = self.create_account()
     
@@ -121,15 +130,82 @@ class Client():
         #update the nonce
         self.nonce = response.headers["Replay-Nonce"]
         if response.status_code == 201:
+            self.logger.info("Account created")
             return response.headers["Location"]
         else:
-            raise Exception("Error creating account", response.json())
+            self.logger.error("Error while creating the account: " + response.text)
     
-    def submit_order(self, domains):
-        pass
+    def submit_order(self, domains, challenge_type):
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        #create the payload to create one order for all the domains
+        payload_for_order = {
+            "identifiers": [
+                {
+                    "type": 'dns', #TODO: SHOULD THIS BE CHANGED??????
+                    "value": domain
+                }for domain in domains
+            ],
+            "notBefore": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "notAfter": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 86400))
+        }
+        protected_for_order = {
+            "alg": "ES256",
+            "kid": self.kid,
+            "nonce": self.nonce,
+            "url": self.CA_domains["newOrder"]
+        }
+        signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
+        #create the request
+        response = requests.post(self.CA_domains["newOrder"], headers=headers, data=signed_payload, verify=self.pem_path)
+        #update the nonce
+        self.nonce = response.headers["Replay-Nonce"]
+        if response.status_code == 201:
+            #add order to orders
+            self.orders.append(response.json())
+            self.logger.info("Order created")
+        else:
+            self.logger.error("Error while creating the order: " + response.text)          
     
     def fetch_challenges(self):
-        pass
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        #Get authz
+        for order in self.orders:
+            for authz_url in order["authorizations"]:
+                payload_for_authz = {}
+                protected_for_authz = {
+                    "alg": "ES256",
+                    "kid": self.kid,
+                    "nonce": self.nonce,
+                    "url": authz_url
+                }
+                signed_payload = self.authentificator.sign(protected_for_authz, payload_for_authz)
+                response = requests.post(authz_url, headers=headers, data=signed_payload, verify=self.pem_path)
+                if response.status_code == 200:
+                    self.authz.append(response.json())
+                else:
+                    self.logger.error("Error while fetching the authz: " + response.text)
+        #Get challenges
+        for authz in self.authz:
+            for challenge_url in authz["challenges"]:
+                payload_for_challenge = {}
+                protected_for_challenge = {
+                    "alg": "ES256",
+                    "kid": self.kid,
+                    "nonce": self.nonce,
+                    "url": challenge_url
+                }
+                signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
+                response = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
+                if response.status_code == 200:
+                    self.challenges.append(response.json())
+                else:
+                    self.logger.error("Error while fetching the challenge: " + response.text)
+                    
+                    
     
     def respond_to_challenges(self):
         pass
