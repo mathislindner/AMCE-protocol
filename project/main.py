@@ -1,6 +1,6 @@
 import argparse
 import asyncio
-import client_server
+import new_acme
 import DNS_server
 import HTTP_server
 import subprocess
@@ -35,24 +35,23 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #additionals
     pem_path = "project/pebble.minica.pem"
+    
     #create DNS entry for the record in the record.txt file
-    with open(file="project/record.txt", mode="w") as f:
-        f.write(f". IN A {args.record}\n")
+    with open(file="dns_records.txt", mode="w") as f:
+        f.write("")
+        #f.write(f". 60 IN A {args.record}\n")
     
     #TODO:add logic for commands
     #start server through the command line as a subprocess
-    subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
-    subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
-    #wait for the servers to start
-    sleep(1)
+    #subprocess.Popen(["python", "project/dns_test.py", "--record", args.record])
+    #subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
+    
     #create account for client if it doesn't exist and set some constants
-    client = client_server.Client(args.dir_url, pem_path, args.record)
+    client = new_acme.Client(args.dir_url, pem_path, args.record)
     
     #place order for certificate
     client.place_order(args.domain, args.challenge_type, args.record)
     client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
-    #loop to check on the orders and challenges
-    #asyncio.run(client.check_queues(revoke=args.revoke))
     
     
     

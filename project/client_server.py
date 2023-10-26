@@ -1,9 +1,9 @@
 import requests
 from dependencies.jws import jws_creator
 import json
+import time
 from time import sleep
 import queue
-import asyncio
 import os
 class Client():
     def __init__(self, dir_address, pem_path, record):
@@ -66,8 +66,7 @@ class Client():
         """
         #use the kid to sign the request
         headers = {
-            "Content-Type": "application/jose+json",
-            "Kid": self.kid
+            "Content-Type": "application/jose+json"
         }
         #create the payload to create one order for all the domains
         payload_for_order = {
@@ -76,7 +75,9 @@ class Client():
                     "type": 'dns',
                     "value": domain
                 }for domain in domains
-            ]
+            ],
+            "notBefore": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "notAfter": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 86400))
         }
         #create the jws for the challenge
         new_order_jws = self.jws.get_jws(payload_for_order, self.nonce, self.CA_domains["newOrder"], self.kid)
@@ -95,7 +96,7 @@ class Client():
         else:
             raise Exception("Error placing order", r.status_code, r.text)
     
-    def check_challenge_url(self, auth_url):
+    def check_challenge_url(self, challenge_url):
         """_summary_
         Check on all status of all the authorizations
             Returns:
@@ -103,22 +104,22 @@ class Client():
         """
         #send the request to the to get the status
         headers = {
-            "Content-Type": "application/jose+json",
-            "Kid": self.kid
+            "Content-Type": "application/jose+json"
         }
         #create the payload to check the order status
-        payload_for_order = {}
+        payload = {}
         #create the jws for the challenge
-        signed_data = self.jws.get_jws(payload_for_order, self.nonce, auth_url, self.kid)
-        r = requests.post(auth_url, data=signed_data, headers=headers, verify=self.pem_path)
+        signed_data = self.jws.get_jws(payload, self.nonce, challenge_url, kid = self.kid)
+        r = requests.post(challenge_url, data=signed_data, headers=headers, verify=self.pem_path)
         self.nonce = r.headers["Replay-Nonce"]
         if r.status_code == 200:
+            print(r.json())
             print("Status of authorization: " + r.json().get("status"))
             return r.json().get("status")
         elif r.json()["type"] == "urn:ietf:params:acme:error:badNonce":
             #retry the request
             print("Bad nonce, retrying...")
-            self.check_challenge_url(auth_url)
+            self.check_challenge_url(challenge_url)
         else:
             raise Exception("Error checking order status", r.status_code, r.text)
     
@@ -144,14 +145,13 @@ class Client():
         for auth_url in order["authorizations"]:
             #add the kid to the header
             headers = {
-                "Content-Type": "application/jose+json",
-                "Kid": self.kid
+                "Content-Type": "application/jose+json"
             }
             #create the payload to get the challenge
             payload = {}
             #create the jws for the challenge
-            challenge_jws = self.jws.get_jws(payload, self.nonce, auth_url, self.kid)
-            r = requests.post(auth_url, data=challenge_jws, headers=headers, verify=self.pem_path)
+            auth_jws = self.jws.get_jws(payload, self.nonce, auth_url, self.kid)
+            r = requests.post(auth_url, data=auth_jws, headers=headers, verify=self.pem_path)
             self.nonce = r.headers["Replay-Nonce"]
             if r.status_code == 200:     
                 challenges = r.json()["challenges"]
@@ -162,7 +162,7 @@ class Client():
                 #TODO:retry
                 raise Exception("Error getting challenge", r.status_code, r.text)
             
-    def complete_dns_challenge(self, challenge, authorization_key):
+    def complete_dns_challenge(self, challenge, authorization_key, domain):
         """_summary_
         send the dns record to the dns server on port
             Returns:
@@ -171,11 +171,10 @@ class Client():
         print("solving dns challenge")
         #get the token from the challenge
         token = challenge["token"]
-        #get url from the challenge
-        url = challenge["url"]
+        url = "_acme-challenge." + domain + "."
         #_acme-challenge.example.com. IN TXT "your-key-authorization-value-here"
-        rec_file = open("project/record.txt", "a")
-        rec_file.write(url + " IN TXT " + authorization_key +"\n")  
+        rec_file = open("dns_records.txt", "a")
+        rec_file.write(url + " 60 IN TXT " + authorization_key +"\n")  
         return True
         
     def complete_http_challenge(self, challenge, authorization_key):
@@ -261,7 +260,6 @@ class Client():
         #get orders
         while not self.orders.empty():
             order = self.orders.get()
-            print("Order", order)
             self.update_challenges_from_order(order)
             print("Challenges in queue", self.challenges_todo.qsize())
             #created 2 different queues to keep track of the challenges that we think are done
@@ -271,7 +269,8 @@ class Client():
                 key_authorization = challenge["token"] + "." + self.jws.get_jwk_thumbprint_encoded()
                 if challenge["type"] == "dns-01" and challenge_type == "dns01":
                     #complete the dns challenge
-                    self.complete_dns_challenge(challenge, key_authorization)
+                    #TODO verify the domain to challenge for
+                    self.complete_dns_challenge(challenge, key_authorization, domain=order["identifiers"][0]["value"] )
                     self.challenges_executed.put(challenge)
                     self.challenges_todo.get()
                 elif challenge["type"] == "http-01" and challenge_type == "http01":
