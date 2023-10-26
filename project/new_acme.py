@@ -84,10 +84,11 @@ class Authentificator():
         return json.dumps(jws).encode("utf-8")
 
 class Client():
-    def __init__(self, dir_url, pem_path, record):
+    def __init__(self, dir_url, pem_path, record, given_challenge_type):
         self.logger = logging.getLogger("ACMECLIENT")
         self.pem_path = pem_path
         self.record = record
+        self.given_challenge_type = given_challenge_type
         self.CA_domains = requests.get(dir_url, verify=self.pem_path).json()
         self.authentificator = Authentificator()
         self.nonce = requests.head(self.CA_domains["newNonce"], verify=self.pem_path).headers["Replay-Nonce"]
@@ -135,7 +136,7 @@ class Client():
         else:
             self.logger.error("Error while creating the account: " + response.text)
     
-    def submit_order(self, domains, challenge_type):
+    def submit_order(self, domains):
         headers = {
             "Content-Type": "application/jose+json"
         }
@@ -183,33 +184,49 @@ class Client():
                     "url": authz_url
                 }
                 signed_payload = self.authentificator.sign(protected_for_authz, payload_for_authz)
-                response = requests.post(authz_url, headers=headers, data=signed_payload, verify=self.pem_path)
-                if response.status_code == 200:
-                    self.authz.append(response.json())
+                r = requests.post(authz_url, headers=headers, data=signed_payload, verify=self.pem_path)
+                self.nonce = r.headers["Replay-Nonce"]
+                if r.status_code == 200:
+                    self.authz.append(r.json())
                 else:
                     self.logger.error("Error while fetching the authz: " + response.text)
+                    
+    #includes getting the challenges
+    def respond_to_challenges(self):
         #Get challenges
         for authz in self.authz:
-            for challenge_url in authz["challenges"]:
-                payload_for_challenge = {}
-                protected_for_challenge = {
-                    "alg": "ES256",
-                    "kid": self.kid,
-                    "nonce": self.nonce,
-                    "url": challenge_url
-                }
-                signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
-                response = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
-                if response.status_code == 200:
-                    self.challenges.append(response.json())
+            for challenge in authz["challenges"]:
+                challenge_url = challenge["url"]
+                challenge_type = challenge["type"]
+                if challenge_type[:2] == self.given_challenge_type[:2]: #sketchy way of ignoring the -
+                    payload_for_challenge = {}
+                    protected_for_challenge = {
+                        "alg": "ES256",
+                        "kid": self.kid,
+                        "nonce": self.nonce,
+                        "url": challenge_url
+                    }
+                    signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
+                    response = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
+                    self.nonce = response.headers["Replay-Nonce"]
+                    if response.status_code == 200:
+                        self.challenges.append(response.json())
+                    else:
+                        self.logger.error("Error while fetching the challenge: " + response.text)
                 else:
-                    self.logger.error("Error while fetching the challenge: " + response.text)
-                    
-                    
-    
-    def respond_to_challenges(self):
-        pass
-    
+                    pass
+                    #self.logger.info(msg="Challenge type not supported, ignoring for now: " + challenge_type)
+        #Complete challenges
+        return 1
+        for challenges in self.challenges:
+            challenge_type = challenge["type"]
+            if challenge_type[:-3] == "dns":
+                completed = self.respond_to_dns_challenge(challenge)
+            elif challenge_type[:-3] == "http":
+                completed = self.respond_to_http_challenge(challenge)
+            if not completed:
+                self.logger.error("Error while responding to challenge: " + challenge)
+        
     def poll_for_status(self):
         pass
     

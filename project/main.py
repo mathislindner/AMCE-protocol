@@ -47,10 +47,10 @@ if __name__ == '__main__':
     #subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
     
     #create account for client if it doesn't exist and set some constants
-    client = new_acme.Client(args.dir_url, pem_path, args.record)
+    client = new_acme.Client(args.dir_url, pem_path, args.record, args.challenge_type)
     
     #place order for certificate
-    client.submit_order(args.domain, args.challenge_type)
+    client.submit_order(args.domain)
     client.fetch_challenges()
     #client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
     
