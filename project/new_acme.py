@@ -68,8 +68,16 @@ class Authentificator():
         signature = self.private_key.sign(signing_input.encode("utf-8"), ec.ECDSA(hashes.SHA256()))
         #decode the signature
         r, s = decode_dss_signature(signature)
-        #return the signature
-        return r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big")
+        signature =  r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big")
+        signature_b64 = base64.urlsafe_b64encode(signature).decode("utf-8").replace("=", "")
+        
+        #create jws
+        jws = {
+            "protected": protected_b64,
+            "payload": payload_b64,
+            "signature": signature_b64
+        }
+        return json.dumps(jws).encode("utf-8")
 
 class Client():
     def __init__(self, dir_url, pem_path, record):
