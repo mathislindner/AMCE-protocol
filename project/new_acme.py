@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+from time import sleep
 import logging
 #CRYPTOGRAPHY
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -190,46 +191,34 @@ class Client():
                     self.authz.append(r.json())
                 else:
                     self.logger.error("Error while fetching the authz: " + response.text)
-                    
-    #includes getting the challenges
-    def respond_to_challenges(self):
-        #Get challenges
+        #extract challenges from authz
         for authz in self.authz:
             for challenge in authz["challenges"]:
-                challenge_url = challenge["url"]
-                challenge_type = challenge["type"]
-                if challenge_type[:2] == self.given_challenge_type[:2]: #sketchy way of ignoring the -
-                    payload_for_challenge = {}
-                    protected_for_challenge = {
-                        "alg": "ES256",
-                        "kid": self.kid,
-                        "nonce": self.nonce,
-                        "url": challenge_url
-                    }
-                    signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
-                    response = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
-                    self.nonce = response.headers["Replay-Nonce"]
-                    if response.status_code == 200:
-                        self.challenges.append(response.json())
-                    else:
-                        self.logger.error("Error while fetching the challenge: " + response.text)
-                else:
-                    pass
-                    #self.logger.info(msg="Challenge type not supported, ignoring for now: " + challenge_type)
-        #Complete challenges
-        return 1
-        for challenges in self.challenges:
+                if challenge["type"] == self.given_challenge_type:
+                    self.challenges.append((challenge, authz["identifier"]["value"]))
+                
+    def complete_challenges(self):
+        for challenge, domain in self.challenges:
             challenge_type = challenge["type"]
             if challenge_type[:-3] == "dns":
-                completed = self.respond_to_dns_challenge(challenge)
+                completed = self.respond_to_dns_challenge(challenge,domain)
             elif challenge_type[:-3] == "http":
-                completed = self.respond_to_http_challenge(challenge)
+                completed = self.respond_to_http_challenge(challenge,domain)
             if not completed:
                 self.logger.error("Error while responding to challenge: " + challenge)
+
+    def respond_to_challenges(self):
+        """_summary_
+        create POST requests to tell that the challenges have been completed
+        """
+        for challenge, _ in challenges:
+            pass
+
         
     def poll_for_status(self):
-        pass
-    
+        """_summary_
+        """
+                    
     def finalize_order(self):
         pass
     

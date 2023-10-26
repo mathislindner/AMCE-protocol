@@ -52,6 +52,8 @@ if __name__ == '__main__':
     #place order for certificate
     client.submit_order(args.domain)
     client.fetch_challenges()
+    #client.respond_to_challenges()
+    #client.poll_for_status()
     #client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
     
     
