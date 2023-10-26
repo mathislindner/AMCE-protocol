@@ -91,7 +91,12 @@ class Client():
         self.http_address = "http://" + record + ":5002"
         
         self.kid = self.create_account()
-        
+    
+    #-------------------------------------------------------------------------------------------------------------------
+    #Helpers to get the certificate
+    
+    #-------------------------------------------------------------------------------------------------------------------
+    # Sequence of steps to get a certificate
     def create_account(self):
         """_summary_
             creates an account, returns the jik
@@ -120,5 +125,22 @@ class Client():
         else:
             raise Exception("Error creating account", response.json())
     
-        
-        
+    def submit_order(self, domains):
+        pass
+    
+    def fetch_challenges(self):
+        pass
+    
+    def respond_to_challenges(self):
+        pass
+    
+    def poll_for_status(self):
+        pass
+    
+    def finalize_order(self):
+        pass
+    
+    def download_certificate(self):
+        pass
+    
+    #-------------------------------------------------------------------------------------------------------------------
