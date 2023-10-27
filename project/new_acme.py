@@ -194,8 +194,7 @@ class Client():
         #extract challenges from authz
         for authz in self.authz:
             for challenge in authz["challenges"]:
-                if challenge["type"] == self.given_challenge_type:
-                    self.challenges.append((challenge, authz["identifier"]["value"]))
+                self.challenges.append((challenge, authz["identifier"]["value"]))
                 
     def complete_challenges(self):
         for challenge, domain in self.challenges:
@@ -210,9 +209,34 @@ class Client():
     def respond_to_challenges(self):
         """_summary_
         create POST requests to tell that the challenges have been completed
+        POST authorization challenge   | 200   
         """
-        for challenge, _ in challenges:
-            pass
+        print(self.challenges)
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        for challenge, _ in self.challenges:
+            challenge_url = challenge["url"]
+            payload_for_challenge = {}
+            protected_for_challenge = {
+                "alg": "ES256",
+                "kid": self.kid,
+                "nonce": self.nonce,
+                "url": challenge_url
+            }
+            signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
+            r = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
+            self.nonce = r.headers["Replay-Nonce"]
+            if r.status_code == 200:
+                if r.json()["status"] == "valid":
+                    self.logger.info("Challenge completed")
+                elif r.json()["status"] == "pending":
+                    self.logger.info("Challenge not completed yet")
+                else:
+                    self.logger.error("Challenge failed")
+            else:
+                self.logger.error("Error while responding to challenge: " + response.text)
+                
 
         
     def poll_for_status(self):
