@@ -37,13 +37,12 @@ if __name__ == '__main__':
     pem_path = "project/pebble.minica.pem"
     
     #create DNS entry for the record in the record.txt file
-    with open(file="dns_records.txt", mode="w") as f:
-        f.write("")
-        #f.write(f". 60 IN A {args.record}\n")
+    with open(file="project/records.txt", mode="w") as f:
+        f.write(f". 60 IN A {args.record}\n")
     
     #TODO:add logic for commands
     #start server through the command line as a subprocess
-    #subprocess.Popen(["python", "project/dns_test.py", "--record", args.record])
+    subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
     subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
     
     #create account for client if it doesn't exist and set some constants
@@ -54,8 +53,10 @@ if __name__ == '__main__':
     client.fetch_challenges()
     client.complete_challenges()
     client.respond_to_challenges()
+    sleep(4)
+    client.poll_for_status()
     wait = input("Press enter to continue")
-    #client.poll_for_status()
+    #
     #client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
     
     

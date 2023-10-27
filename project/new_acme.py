@@ -6,7 +6,9 @@ import logging
 #CRYPTOGRAPHY
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
+import hashlib
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from cryptography.hazmat.backends import default_backend
 import base64
 
 #set logging level
@@ -15,7 +17,7 @@ class Authentificator():
     def __init__(self):
         self.private_key, self.public_key = self.create_keys()
         self.jwk = self.set_jwk()
-        self.jwk_thumbprint = self.set_jwk_thumbprint()
+        self.encodedtp = self.set_encoded_thumbprint()
         
     def create_keys(self):
         """_summary_
@@ -41,18 +43,21 @@ class Authentificator():
             "y": base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
         }
         
-    def set_jwk_thumbprint(self):
+    def set_encoded_thumbprint(self):
         """_summary_
-        Get the jwk thumbprint
+        set the encoded thumbprints
         Returns:
             _type_: str
         """
-        return json.dumps({
-            'crv': 'P-256',
-            'kty': 'EC',
-            'x': base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
-            'y': base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
-        })
+        tp_encoded = json.dumps({
+            "crv": "P-256",
+            "kty": "EC",
+            "x": base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
+            "y": base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
+        }, sort_keys=True).encode("utf-8")
+        hashed = hashlib.sha256(tp_encoded).digest()
+        b64_encoded = base64.urlsafe_b64encode(hashed).decode("utf-8").replace("=", "")
+        return b64_encoded
         
     def sign(self, protected_dict, payload_dict):
         """_summary_
@@ -125,7 +130,13 @@ class Client():
             return True 
         else:
             return False"""
-    def complete_dns_challenge(self, challenge, authorization_key):
+    def complete_dns_challenge(self, challenge, authorization_key, domain):
+        """_summary_
+        Add a line in the records.txt file with the authorization key for the domain
+        """
+        f = open("project/records.txt", "a")
+        f.write(domain + " 60 IN TXT " + authorization_key+"\n")
+        f.close()
         return True
     #-------------------------------------------------------------------------------------------------------------------
     # Sequence of steps to get a certificate
@@ -215,20 +226,23 @@ class Client():
         #extract challenges from authz
         for authz in self.authz:
             for challenge in authz["challenges"]:
-                self.challenges.append((challenge, authz["identifier"]["value"]))
+                if challenge["type"][:-3] == self.given_challenge_type[:-2]:
+                    self.challenges.append((challenge, authz["identifier"]["value"]))
                 
     def complete_challenges(self):
         for challenge, domain in self.challenges:
             completed = False
             challenge_type = challenge["type"]
-            authorization_key = challenge["token"] + "." + base64.urlsafe_b64encode(self.authentificator.jwk_thumbprint).decode("utf-8").replace("=", "")
+            #keyAuthorization = token || '.' || base64url(Thumbprint(accountKey))
+            authorization_key = challenge["token"] + "." + self.authentificator.encodedtp
+            print(authorization_key)
             if challenge_type[:-3] == "dns":
-                completed = self.complete_dns_challenge(challenge, authorization_key)
+                completed = self.complete_dns_challenge(challenge, authorization_key,domain=domain)
             elif challenge_type[:-3] == "http":
                 completed = self.complete_http_challenge(challenge, authorization_key)
             if not completed:
                 self.logger.error("Error while responding to challenge: " + json.dumps(challenge))
-
+        
     def respond_to_challenges(self):
         """_summary_
         create POST requests to tell that the challenges have been completed
@@ -250,12 +264,7 @@ class Client():
             r = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
             self.nonce = r.headers["Replay-Nonce"]
             if r.status_code == 200:
-                if r.json()["status"] == "valid":
-                    self.logger.info("Challenge completed")
-                elif r.json()["status"] == "pending":
-                    self.logger.info("Challenge not completed yet")
-                else:
-                    self.logger.error("Challenge failed")
+                pass
             else:
                 self.logger.error("Error while responding to challenge: " + response.text)
         return
@@ -263,7 +272,31 @@ class Client():
         
     def poll_for_status(self):
         """_summary_
+        check if the challenges have been completed by sending POST-as-GET requests to the challenge URLs
         """
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        for challenge, _ in self.challenges:
+            challenge_url = challenge["url"]
+            payload_for_challenge = None
+            protected_for_challenge = {
+                "alg": "ES256",
+                "kid": self.kid,
+                "nonce": self.nonce,
+                "url": challenge_url
+            }
+            signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
+            r = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
+            self.nonce = r.headers["Replay-Nonce"]
+            if r.status_code == 200:
+                if r.json()["status"] == "valid":
+                    self.logger.info("Challenge completed")
+                else:
+                    self.logger.error("Challenge not completed: " + json.dumps(challenge))
+            else:
+                self.logger.error("Error while polling for status: " + response.text)
+        return
                     
     def finalize_order(self):
         pass

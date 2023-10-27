@@ -1,3 +1,4 @@
 *.pyc
 */record.txt
 dns_records.txt
+project/records.txt
