@@ -64,7 +64,7 @@ class Authentificator():
         #get the payload in base64
         payload_b64 = base64.urlsafe_b64encode(json.dumps(payload_dict).encode("utf-8")).decode("utf-8").replace("=", "")
         #edge case for empty payload
-        if payload_dict == {}:
+        if payload_dict == None:
             payload_b64 = ""
             
         #create the signing input
@@ -105,7 +105,28 @@ class Client():
     
     #-------------------------------------------------------------------------------------------------------------------
     #Helpers to get the certificate
-    
+    def complete_http_challenge(self, challenge, authorization_key):
+        #get the token from the challenge
+        token = challenge["token"]
+        #form a post request to the http server including the token and the authorization
+        url = self.http_address + "/allocate_challenge"
+        url = url + "?path=" + token + "&authorization=" + authorization_key
+        r = requests.get(url)
+        return True
+        """
+        #verify that the server managed to allocate the challenge
+        if r.status_code == 200:
+            url = self.http_address + "/.well-known/acme-challenge/" + token
+            r = requests.get(url)
+            if r.status_code == 200:
+                #check if the authorization is in the response
+                if authorization_key in r.text:
+                    print("HTTP challenge added to the https server")
+            return True 
+        else:
+            return False"""
+    def complete_dns_challenge(self, challenge, authorization_key):
+        return True
     #-------------------------------------------------------------------------------------------------------------------
     # Sequence of steps to get a certificate
     def create_account(self):
@@ -177,7 +198,7 @@ class Client():
         #Get authz
         for order in self.orders:
             for authz_url in order["authorizations"]:
-                payload_for_authz = {}
+                payload_for_authz = None
                 protected_for_authz = {
                     "alg": "ES256",
                     "kid": self.kid,
@@ -198,20 +219,21 @@ class Client():
                 
     def complete_challenges(self):
         for challenge, domain in self.challenges:
+            completed = False
             challenge_type = challenge["type"]
+            authorization_key = challenge["token"] + "." + base64.urlsafe_b64encode(self.authentificator.jwk_thumbprint).decode("utf-8").replace("=", "")
             if challenge_type[:-3] == "dns":
-                completed = self.respond_to_dns_challenge(challenge,domain)
+                completed = self.complete_dns_challenge(challenge, authorization_key)
             elif challenge_type[:-3] == "http":
-                completed = self.respond_to_http_challenge(challenge,domain)
+                completed = self.complete_http_challenge(challenge, authorization_key)
             if not completed:
-                self.logger.error("Error while responding to challenge: " + challenge)
+                self.logger.error("Error while responding to challenge: " + json.dumps(challenge))
 
     def respond_to_challenges(self):
         """_summary_
         create POST requests to tell that the challenges have been completed
         POST authorization challenge   | 200   
         """
-        print(self.challenges)
         headers = {
             "Content-Type": "application/jose+json"
         }
@@ -236,7 +258,7 @@ class Client():
                     self.logger.error("Challenge failed")
             else:
                 self.logger.error("Error while responding to challenge: " + response.text)
-                
+        return
 
         
     def poll_for_status(self):

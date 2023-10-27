@@ -44,7 +44,7 @@ if __name__ == '__main__':
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     #subprocess.Popen(["python", "project/dns_test.py", "--record", args.record])
-    #subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
+    subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
     
     #create account for client if it doesn't exist and set some constants
     client = new_acme.Client(args.dir_url, pem_path, args.record, args.challenge_type)
@@ -52,8 +52,9 @@ if __name__ == '__main__':
     #place order for certificate
     client.submit_order(args.domain)
     client.fetch_challenges()
-    #client.complete_challenges()
+    client.complete_challenges()
     client.respond_to_challenges()
+    wait = input("Press enter to continue")
     #client.poll_for_status()
     #client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
     
