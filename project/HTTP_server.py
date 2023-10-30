@@ -29,6 +29,6 @@ def allocate_challenge():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Start the http server')
-    parser.add_argument('--record', type=str, help='The ip address of the dns server')
+    parser.add_argument('--record', type=str, help='The ip address of the http server')
     args = parser.parse_args()
     app.run(host=args.record, port=5002)
