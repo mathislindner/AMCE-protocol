@@ -2,3 +2,4 @@ dnslib
 Flask
 cryptography
 requests
+Crypto
