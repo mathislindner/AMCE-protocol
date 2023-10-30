@@ -31,16 +31,13 @@ if __name__ == "__main__":
     testing = args.record
     
     resolver = SimpleAddiResolver()
-    dns_server = DNSServer(resolver, port=10035, address=testing, tcp=False)
+    dns_server = DNSServer(resolver, port=10035, address=testing)
     dns_server.start_thread()
     
     
     dns_logger.info("DNS server started on address:{} port:{}".format(testing, 10035))
-    try:
-        while 1:
-            sleep(0.1)
-    except KeyboardInterrupt:
+    
+    while dns_server.isAlive():
         pass
-    finally:
-        dns_server.stop()
+        
         
