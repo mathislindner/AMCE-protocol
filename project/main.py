@@ -45,8 +45,8 @@ if __name__ == '__main__':
     #start server through the command line as a subprocess
     #subprocess.Popen(["python3", "project/dns_test.py", "--record", args.record])
     if args.challenge_type != "dns01":
-        subprocess.Popen(["python3", "project/HTTP_server.py", "--record", args.record])
-        sleep(2)
+        #subprocess.Popen(["python3", "project/HTTP_server.py", "--record", args.record])
+        #sleep(2)
         #add http01 record to the records.txt file
         with open(file="project/records.txt", mode="a") as f:
             for domain in args.domain:
@@ -58,14 +58,12 @@ if __name__ == '__main__':
     #place order for certificate
     client.submit_order(args.domain)
     client.fetch_challenges()
-    client.complete_challenges()
-    client.respond_to_challenges()
-    sleep(10)
-    client.poll_for_status()
+    client.answer_and_verify_challenges()
+    client.finalize_order()
     wait = input("Press enter to continue")
-    #
-    #client.answer_challenges(challenge_type=args.challenge_type, revoke=args.revoke)
-    
+    #stop the servers
+    #subprocess.Popen(["pkill", "-f", "python3 project/HTTP_server.py"])
+    #subprocess.Popen(["pkill", "-f", "python3 project/dns_test.py"])
     
     
     

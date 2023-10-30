@@ -5,4 +5,4 @@
 
 echo "Run your project here."
 #just pass the arguments to main.py
-python project/main.py "$@"
+python3 project/main.py "$@"

@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+import os
 from time import sleep
 import logging
 #CRYPTOGRAPHY
@@ -89,7 +90,47 @@ class Authentificator():
             "signature": signature_b64
         }
         return json.dumps(jws).encode("utf-8")
-
+    
+    def generate_CSR(self, domains):
+        """_summary_
+        Generate a certificate signing request
+        Returns:
+            _type_: str
+        """
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.backends import default_backend
+        #hadnle wildcard domains
+        domain = domains[0]
+        if domain[0][:2] == "*.":
+            domain = domain[0][2:]
+        #create the private key
+        server_private_key = ec.generate_private_key(ec.SECP256R1())
+        #save the private key
+        os.makedirs("certs", exist_ok=True)
+        path_private_key = "certs/server_private_key" + domain + ".pem"
+        with open(path_private_key, "wb") as f:
+            f.write(server_private_key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.TraditionalOpenSSL, encryption_algorithm=serialization.NoEncryption()))
+        #create the csr
+        csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
+            x509.NameAttribute(NameOID.COUNTRY_NAME, u"CH"),
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"),
+            x509.NameAttribute(NameOID.LOCALITY_NAME, u"Zurich"),
+            x509.NameAttribute(NameOID.COMMON_NAME, domain),
+        ])).add_extension(
+            x509.SubjectAlternativeName([
+                x509.DNSName(domain) for domain in domains
+            ]),
+            critical=False,
+        ).sign(server_private_key, hashes.SHA256(), default_backend())
+        #save the csr
+        path_csr = "certs/CSR" + domain + ".csr"
+        with open(path_csr, "wb") as f:
+            f.write(csr.public_bytes(serialization.Encoding.PEM))
+        return path_csr
+    
 class Client():
     def __init__(self, dir_url, pem_path, record, given_challenge_type):
         self.logger = logging.getLogger("ACMECLIENT")
@@ -119,22 +160,9 @@ class Client():
         #form a post request to the http server including the token and the authorization
         url = self.http_address + "/allocate_challenge"
         url = url + "?path=" + token + "&authorization=" + authorization_key
-        print(url)
         r = requests.get(url)
         
         return True
-        """
-        #verify that the server managed to allocate the challenge
-        if r.status_code == 200:
-            url = self.http_address + "/.well-known/acme-challenge/" + token
-            r = requests.get(url)
-            if r.status_code == 200:
-                #check if the authorization is in the response
-                if authorization_key in r.text:
-                    print("HTTP challenge added to the https server")
-            return True 
-        else:
-            return False"""
             
     def complete_dns_challenge(self, challenge, to_allocate, domain):
         """_summary_
@@ -144,6 +172,23 @@ class Client():
         f.write("_acme-challenge." + domain + ". 300 IN TXT " + to_allocate + "\n")
         f.close()
         return True
+    
+    
+    def answer_and_verify_challenges(self):
+        """_summary_
+        Answer the challenges and verify that the answers are correct sequentially
+        Combines client.complete_challenges(), client.respond_to_challenges(), client.poll_for_status() sequentially
+        """
+        for challenge in self.challenges:
+            if self.complete_challenge(challenge[0], challenge[1]):
+                if self.respond_to_challenge(challenge[0], challenge[1]):
+                    if self.poll_for_status(challenge[0]):
+                        self.logger.info("Challenge completed")
+                    else:
+                        self.logger.error("Challenge could not be completed")
+                else:
+                    self.logger.error("Challenge could not be responded to")
+            
     #-------------------------------------------------------------------------------------------------------------------
     # Sequence of steps to get a certificate
     def create_account(self):
@@ -235,57 +280,56 @@ class Client():
                 if challenge["type"][:-3] == self.given_challenge_type[:-2]:
                     self.challenges.append((challenge, authz["identifier"]["value"]))
                 
-    def complete_challenges(self):
-        for challenge, domain in self.challenges:
-            completed = False
-            challenge_type = challenge["type"]
-            #keyAuthorization = token || '.' || base64url(Thumbprint(accountKey))
-            authorization_key_raw = challenge["token"] + "." + self.authentificator.encodedtp
-            
-            if challenge_type[:-3] == "dns":
-                #compute 256 sha digest
-                to_allocate =  base64.urlsafe_b64encode(SHA256.new(authorization_key_raw.encode("utf-8")).digest()).decode("utf-8").replace("=", "")
-                completed = self.complete_dns_challenge(challenge, to_allocate ,domain=domain)
-            elif challenge_type[:-3] == "http":
-                completed = self.complete_http_challenge(challenge, authorization_key_raw)
-            if not completed:
-                self.logger.error("Error while responding to challenge: " + json.dumps(challenge))
+    def complete_challenge(self, challenge, domain):
+        completed = False
+        challenge_type = challenge["type"]
+        #keyAuthorization = token || '.' || base64url(Thumbprint(accountKey))
+        authorization_key_raw = challenge["token"] + "." + self.authentificator.encodedtp
         
-    def respond_to_challenges(self):
+        if challenge_type[:-3] == "dns":
+            #compute 256 sha digest
+            to_allocate =  base64.urlsafe_b64encode(SHA256.new(authorization_key_raw.encode("utf-8")).digest()).decode("utf-8").replace("=", "")
+            completed = self.complete_dns_challenge(challenge, to_allocate ,domain=domain)
+        elif challenge_type[:-3] == "http":
+            completed = self.complete_http_challenge(challenge, authorization_key_raw)
+        if not completed:
+            self.logger.error("Error while responding to challenge: " + json.dumps(challenge))
+        return completed
+            
+        
+    def respond_to_challenge(self, challenge, domain):
         """_summary_
-        create POST requests to tell that the challenges have been completed
+        create POST requests to tell that the challenge has been completed
         POST authorization challenge   | 200   
         """
         headers = {
             "Content-Type": "application/jose+json"
         }
-        for challenge, _ in self.challenges:
-            challenge_url = challenge["url"]
-            payload_for_challenge = {}
-            protected_for_challenge = {
-                "alg": "ES256",
-                "kid": self.kid,
-                "nonce": self.nonce,
-                "url": challenge_url
-            }
-            signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
-            r = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
-            self.nonce = r.headers["Replay-Nonce"]
-            if r.status_code == 200:
-                pass
-            else:
-                self.logger.error("Error while responding to challenge: " + response.text)
-        return
+        challenge_url = challenge["url"]
+        payload_for_challenge = {}
+        protected_for_challenge = {
+            "alg": "ES256",
+            "kid": self.kid,
+            "nonce": self.nonce,
+            "url": challenge_url
+        }
+        signed_payload = self.authentificator.sign(protected_for_challenge, payload_for_challenge)
+        r = requests.post(challenge_url, headers=headers, data=signed_payload, verify=self.pem_path)
+        self.nonce = r.headers["Replay-Nonce"]
+        if r.status_code == 200:
+            return True
+        self.logger.error("Error while responding to challenge: " + response.text)
+        return False
 
         
-    def poll_for_status(self):
+    def poll_for_status(self, challenge):
         """_summary_
         check if the challenges have been completed by sending POST-as-GET requests to the challenge URLs
         """
         headers = {
             "Content-Type": "application/jose+json"
         }
-        for challenge, _ in self.challenges:
+        for i in range(4):
             challenge_url = challenge["url"]
             payload_for_challenge = None
             protected_for_challenge = {
@@ -300,14 +344,42 @@ class Client():
             if r.status_code == 200:
                 if r.json()["status"] == "valid":
                     self.logger.info("Challenge completed")
+                    return True
                 else:
-                    self.logger.error("Challenge not completed: " + json.dumps(challenge))
+                    self.logger.error("Challenge not completed yet try nr{}: ".format(i) + json.dumps(challenge))
+                    sleep(3)
             else:
                 self.logger.error("Error while polling for status: " + response.text)
-        return
+        self.logger.error("Challenge could not be completed after 3 tries: " + json.dumps(challenge))
+        return False
                     
     def finalize_order(self):
-        pass
+        """_summary_
+        Finalize the order
+        """
+        csr_path = self.authentificator.generate_CSR([authz["identifier"]["value"] for authz in self.authz])
+        csr = open(csr_path, "rb").read()
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        for order in self.orders:
+            payload_for_order = {
+                "csr": base64.urlsafe_b64encode(csr).decode("utf-8").replace("=", "")
+            }
+            protected_for_order = {
+                "alg": "ES256",
+                "kid": self.kid,
+                "nonce": self.nonce,
+                "url": order["finalize"]
+            }
+            signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
+            r = requests.post(order["finalize"], headers=headers, data=signed_payload, verify=self.pem_path)
+            self.nonce = r.headers["Replay-Nonce"]
+            if r.status_code == 200:
+                self.logger.info("Order finalized")
+                return True
+            else:
+                self.logger.error("Error while finalizing the order: " + r.text)
     
     def download_certificate(self):
         pass

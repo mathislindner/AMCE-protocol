@@ -4,3 +4,4 @@ dns_records.txt
 project/records.txt
 project/dns_test.py
 go1.21.3.linux-amd64.tar.gz
+certs/*

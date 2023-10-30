@@ -2,4 +2,4 @@
 
 echo "Compile your project here"
 #install allowed dependencies
-pip install -r project/requirements.txt
+pip3 install -r project/requirements.txt
