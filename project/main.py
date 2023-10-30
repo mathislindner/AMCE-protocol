@@ -38,12 +38,18 @@ if __name__ == '__main__':
     
     #create DNS entry for the record in the record.txt file
     with open(file="project/records.txt", mode="w") as f:
-        f.write(f". 60 IN A {args.record}\n")
+        f.write(f"")
+        #f.write(f". 300 IN A {args.record}\n")
     
     #TODO:add logic for commands
     #start server through the command line as a subprocess
     subprocess.Popen(["python", "project/DNS_server.py", "--record", args.record])
-    subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
+    if args.challenge_type == "http01":
+        subprocess.Popen(["python", "project/HTTP_server.py", "--record", args.record])
+        #add http01 record to the records.txt file
+        with open(file="project/records.txt", mode="a") as f:
+            for domain in args.domain:
+                f.write(f"{domain}. 300 IN A {args.record}\n")
     
     #create account for client if it doesn't exist and set some constants
     client = new_acme.Client(args.dir_url, pem_path, args.record, args.challenge_type)
@@ -53,7 +59,7 @@ if __name__ == '__main__':
     client.fetch_challenges()
     client.complete_challenges()
     client.respond_to_challenges()
-    sleep(4)
+    sleep(10)
     client.poll_for_status()
     wait = input("Press enter to continue")
     #

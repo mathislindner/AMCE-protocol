@@ -7,6 +7,7 @@ import logging
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 import hashlib
+from Crypto.Hash import SHA256
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.backends import default_backend
 import base64
@@ -54,8 +55,8 @@ class Authentificator():
             "kty": "EC",
             "x": base64.urlsafe_b64encode(self.public_key.public_numbers().x.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", ""),
             "y": base64.urlsafe_b64encode(self.public_key.public_numbers().y.to_bytes(32, byteorder="big")).decode("utf-8").replace("=", "")
-        }, sort_keys=True).encode("utf-8")
-        hashed = hashlib.sha256(tp_encoded).digest()
+        }, sort_keys=True).replace(" ", "")
+        hashed = SHA256.new(tp_encoded.encode("utf-8")).digest()
         b64_encoded = base64.urlsafe_b64encode(hashed).decode("utf-8").replace("=", "")
         return b64_encoded
         
@@ -100,7 +101,9 @@ class Client():
         self.nonce = requests.head(self.CA_domains["newNonce"], verify=self.pem_path).headers["Replay-Nonce"]
         
         self.dns_address = "http://" + record + ":10035"
+        self.http_shut_down_adress = "http://" + record + ":5003"
         self.http_address = "http://" + record + ":5002"
+        self.https_address = "https://" + record + ":5001"
         
         self.orders = []
         self.authz = []
@@ -116,7 +119,9 @@ class Client():
         #form a post request to the http server including the token and the authorization
         url = self.http_address + "/allocate_challenge"
         url = url + "?path=" + token + "&authorization=" + authorization_key
+        print(url)
         r = requests.get(url)
+        
         return True
         """
         #verify that the server managed to allocate the challenge
@@ -130,12 +135,13 @@ class Client():
             return True 
         else:
             return False"""
-    def complete_dns_challenge(self, challenge, authorization_key, domain):
+            
+    def complete_dns_challenge(self, challenge, to_allocate, domain):
         """_summary_
         Add a line in the records.txt file with the authorization key for the domain
         """
         f = open("project/records.txt", "a")
-        f.write(domain + " 60 IN TXT " + authorization_key+"\n")
+        f.write("_acme-challenge." + domain + ". 300 IN TXT " + to_allocate + "\n")
         f.close()
         return True
     #-------------------------------------------------------------------------------------------------------------------
@@ -234,12 +240,14 @@ class Client():
             completed = False
             challenge_type = challenge["type"]
             #keyAuthorization = token || '.' || base64url(Thumbprint(accountKey))
-            authorization_key = challenge["token"] + "." + self.authentificator.encodedtp
-            print(authorization_key)
+            authorization_key_raw = challenge["token"] + "." + self.authentificator.encodedtp
+            
             if challenge_type[:-3] == "dns":
-                completed = self.complete_dns_challenge(challenge, authorization_key,domain=domain)
+                #compute 256 sha digest
+                to_allocate =  base64.urlsafe_b64encode(SHA256.new(authorization_key_raw.encode("utf-8")).digest()).decode("utf-8").replace("=", "")
+                completed = self.complete_dns_challenge(challenge, to_allocate ,domain=domain)
             elif challenge_type[:-3] == "http":
-                completed = self.complete_http_challenge(challenge, authorization_key)
+                completed = self.complete_http_challenge(challenge, authorization_key_raw)
             if not completed:
                 self.logger.error("Error while responding to challenge: " + json.dumps(challenge))
         

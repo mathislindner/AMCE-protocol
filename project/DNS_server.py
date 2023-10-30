@@ -28,11 +28,14 @@ if __name__ == "__main__":
     parser.add_argument('--record', type=str, help='The ip address of the dns server')
     args = parser.parse_args()
     
+    testing = args.record
+    
     resolver = SimpleAddiResolver()
-    dns_server = DNSServer(resolver, port=10035, address=args.record, tcp=False)
+    dns_server = DNSServer(resolver, port=10035, address=testing, tcp=False)
     dns_server.start_thread()
     
-    dns_logger.info("DNS server started on address:{} port:{}".format(args.record, 10035))
+    
+    dns_logger.info("DNS server started on address:{} port:{}".format(testing, 10035))
     try:
         while 1:
             sleep(0.1)
