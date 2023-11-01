@@ -43,10 +43,10 @@ if __name__ == '__main__':
     
     #TODO:add logic for commands
     #start server through the command line as a subprocess
-    #subprocess.Popen(["python3", "project/dns_test.py", "--record", args.record])
+    subprocess.Popen(["python3", "project/DNS_server.py", "--record", args.record])
     if args.challenge_type != "dns01":
-        #subprocess.Popen(["python3", "project/HTTP_server.py", "--record", args.record])
-        #sleep(2)
+        subprocess.Popen(["python3", "project/HTTP_server.py", "--record", args.record])
+        sleep(1)
         #add http01 record to the records.txt file
         with open(file="project/records.txt", mode="a") as f:
             for domain in args.domain:
