@@ -60,6 +60,8 @@ if __name__ == '__main__':
     client.fetch_challenges()
     client.answer_and_verify_challenges()
     client.finalize_order()
+    certificates_urls = client.get_certificate_urls()
+    #certif = client.download_certificate()
     wait = input("Press enter to continue")
     #stop the servers
     #subprocess.Popen(["pkill", "-f", "python3 project/HTTP_server.py"])

@@ -5,6 +5,8 @@ import os
 from time import sleep
 import logging
 #CRYPTOGRAPHY
+import cryptography
+from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 import hashlib
@@ -97,38 +99,35 @@ class Authentificator():
         Returns:
             _type_: str
         """
-        from cryptography import x509
-        from cryptography.x509.oid import NameOID
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.backends import default_backend
         #hadnle wildcard domains
         domain = domains[0]
         if domain[0][:2] == "*.":
             domain = domain[0][2:]
         #create the private key
-        server_private_key = ec.generate_private_key(ec.SECP256R1())
+        server_private_key, server_public_key = self.create_keys()
         #save the private key
         os.makedirs("certs", exist_ok=True)
-        path_private_key = "certs/server_private_key" + domain + ".pem"
+        path_private_key = "certs/private_key" + domain + ".pem"
         with open(path_private_key, "wb") as f:
-            f.write(server_private_key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.TraditionalOpenSSL, encryption_algorithm=serialization.NoEncryption()))
+            f.write(server_private_key.private_bytes(encoding=cryptography.hazmat.primitives.serialization.Encoding.PEM, 
+                                                     format=cryptography.hazmat.primitives.serialization.PrivateFormat.TraditionalOpenSSL, 
+                                                     encryption_algorithm=cryptography.hazmat.primitives.serialization.NoEncryption()))
         #create the csr
         csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, u"CH"),
-            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"),
-            x509.NameAttribute(NameOID.LOCALITY_NAME, u"Zurich"),
-            x509.NameAttribute(NameOID.COMMON_NAME, domain),
+            x509.NameAttribute(x509.NameOID.COUNTRY_NAME, u"CH"),
+            x509.NameAttribute(x509.NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"),
+            x509.NameAttribute(x509.NameOID.LOCALITY_NAME, u"Zurich"),
+            x509.NameAttribute(x509.NameOID.COMMON_NAME, domain),
         ])).add_extension(
             x509.SubjectAlternativeName([
                 x509.DNSName(domain) for domain in domains
             ]),
             critical=False,
-        ).sign(server_private_key, hashes.SHA256(), default_backend())
+        ).sign(server_private_key, hashes.SHA256())
         #save the csr
-        path_csr = "certs/CSR" + domain + ".csr"
+        path_csr = "certs/CSR" + domain + ".der"
         with open(path_csr, "wb") as f:
-            f.write(csr.public_bytes(serialization.Encoding.PEM))
+            f.write(csr.public_bytes(cryptography.hazmat.primitives.serialization.Encoding.DER))
         return path_csr
     
 class Client():
@@ -182,7 +181,8 @@ class Client():
         for challenge in self.challenges:
             if self.complete_challenge(challenge[0], challenge[1]):
                 if self.respond_to_challenge(challenge[0], challenge[1]):
-                    if self.poll_for_status(challenge[0]):
+                    sleep(2)
+                    if self.poll_for_status_challenge(challenge[0]):
                         self.logger.info("Challenge completed")
                     else:
                         self.logger.error("Challenge could not be completed")
@@ -228,7 +228,7 @@ class Client():
         payload_for_order = {
             "identifiers": [
                 {
-                    "type": 'dns', #TODO: SHOULD THIS BE CHANGED??????
+                    "type": 'dns',
                     "value": domain
                 }for domain in domains
             ],
@@ -322,7 +322,7 @@ class Client():
         return False
 
         
-    def poll_for_status(self, challenge):
+    def poll_for_status_challenge(self, challenge):
         """_summary_
         check if the challenges have been completed by sending POST-as-GET requests to the challenge URLs
         """
@@ -380,8 +380,66 @@ class Client():
                 return True
             else:
                 self.logger.error("Error while finalizing the order: " + r.text)
-    
+                
+    def get_certificate_urls(self):
+        """_summary_
+        Update the order status and return certificate url        
+        """
+        certificate_urls = []
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        for order in self.orders:
+            for i in range(4):
+                payload_for_order = None
+                protected_for_order = {
+                    "alg": "ES256",
+                    "kid": self.kid,
+                    "nonce": self.nonce,
+                    "url": order["Location"]
+                }
+                signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
+                r = requests.post(order["Location"], headers=headers, data=signed_payload, verify=self.pem_path)
+                self.nonce = r.headers["Replay-Nonce"]
+                if r.status_code == 200:
+                    self.logger.info("Order status updated")
+                    status = r.json()["status"]
+                    if status == "valid":
+                        certificate_urls.append(r.json()["certificate"])
+                        break
+                if i == 3:
+                    self.logger.error("Order status was not valid after 3 tries")
+                    return None  
+                else:
+                    self.logger.error("Error while updating the order status: " + r.text)
+                
+        return certificate_urls
+        
     def download_certificate(self):
-        pass
+        """_summary_
+        Download the certificate
+        """
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        order=self.orders[0] #TODO: check if this is correct
+        self.logger.info(order)
+        for order in self.orders:
+            payload_for_order = None
+            protected_for_order = {
+                "alg": "ES256",
+                "kid": self.kid,
+                "nonce": self.nonce,
+                "url": order["certificate"]
+            }
+            signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
+            r = requests.post(order["certificate"], headers=headers, data=signed_payload, verify=self.pem_path)
+            self.nonce = r.headers["Replay-Nonce"]
+            if r.status_code == 200:
+                self.logger.info("Certificate downloaded")
+                print(r.text)
+                return certificate
+            else:
+                self.logger.error("Error while downloading the certificate: " + r.text)
     
     #-------------------------------------------------------------------------------------------------------------------
