@@ -63,8 +63,7 @@ if __name__ == '__main__':
     certificates_urls = client.get_certificate_urls()
     client.download_certificates(certificates_urls, args.domain)
     #start the https server
-    
-    wait = input("Press enter to continue")
+    https_servers = client.start_https_servers(args.domain)
     #stop the servers
     #subprocess.Popen(["pkill", "-f", "python3 project/HTTP_server.py"])
     #subprocess.Popen(["pkill", "-f", "python3 project/dns_test.py"])

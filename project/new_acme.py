@@ -1,4 +1,6 @@
 import requests
+import http
+from ssl import wrap_socket
 import json
 import time
 import os
@@ -14,6 +16,7 @@ from Crypto.Hash import SHA256
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.backends import default_backend
 import base64
+
 
 #set logging level
 logging.basicConfig(level=logging.INFO)
@@ -107,7 +110,7 @@ class Authentificator():
         server_private_key, server_public_key = self.create_keys()
         #save the private key
         os.makedirs("certs", exist_ok=True)
-        path_private_key = "certs/private_key" + domain + ".pem"
+        path_private_key = "certs/server_private_key.pem"
         with open(path_private_key, "wb") as f:
             f.write(server_private_key.private_bytes(encoding=cryptography.hazmat.primitives.serialization.Encoding.PEM, 
                                                      format=cryptography.hazmat.primitives.serialization.PrivateFormat.TraditionalOpenSSL, 
@@ -125,7 +128,7 @@ class Authentificator():
             critical=False,
         ).sign(server_private_key, hashes.SHA256())
         #save the csr
-        path_csr = "certs/CSR" + domain + ".der"
+        path_csr = "certs/CSR.der"
         with open(path_csr, "wb") as f:
             f.write(csr.public_bytes(cryptography.hazmat.primitives.serialization.Encoding.DER))
         return path_csr
@@ -456,8 +459,20 @@ class Client():
             with open(certificate_path, "wb") as f:
                 f.write(certificate)
     #-------------------------------------------------------------------------------------------------------------------
-        def start_https_server(self, domains):
-            """_summary_
-            Start the https server
-            """
+    def start_https_servers(self, domains):
+        """_summary_
+        Start the https server
+        """
+        https_servers = []
+        for domain in domains:
+            https_server = http.server.HTTPServer((self.record , 5001), http.server.SimpleHTTPRequestHandler)
+            certfile_path = "certs/certificate" + domain + ".pem"
+            keyfile_path = "certs/server_private_key.pem"
+            https_server.socket = wrap_socket(https_server.socket, 
+                                                certfile=certfile_path, 
+                                                keyfile=keyfile_path,
+                                                server_side=True)
+            https_servers.append(https_server)
+            https_server.serve_forever()
+        return https_servers
             
