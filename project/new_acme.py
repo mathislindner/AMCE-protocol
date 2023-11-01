@@ -103,9 +103,9 @@ class Authentificator():
             _type_: str
         """
         #hadnle wildcard domains
+        domains = [domain.replace("*.", "") for domain in domains]
+        #get the domain
         domain = domains[0]
-        if domain[0][:2] == "*.":
-            domain = domain[0][2:]
         #create the private key
         server_private_key, server_public_key = self.create_keys()
         #save the private key

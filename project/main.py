@@ -48,16 +48,16 @@ if __name__ == '__main__':
     
     #create account for client if it doesn't exist and set some constants
     client = new_acme.Client(args.dir_url, pem_path, args.record, args.challenge_type)
-    
+    domains = [domain.replace("*.","") for domain in args.domain]
     #place order for certificate
-    client.submit_order(args.domain)
+    client.submit_order(domains)
     client.fetch_challenges()
     client.answer_and_verify_challenges()
     client.finalize_order()
     certificates_urls = client.get_certificate_urls()
-    client.download_certificates(certificates_urls, args.domain)
+    client.download_certificates(certificates_urls, domains)
     if args.revoke:
-        client.revoke_certificates(domains=args.domain)
+        client.revoke_certificates(domains=domains)
     #start the https server
     #TODO the shutdown server should be ready to be called
     https_servers = client.start_https_servers()
