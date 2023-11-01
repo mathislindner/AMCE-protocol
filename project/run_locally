@@ -8,7 +8,7 @@ echo "Run your project here."
 #DNS challenge
 #python3 project/main.py dns01 --dir https://localhost:14000/dir --record 127.0.0.1 --domain localhost #--domain localhost
 #HTTP challenge
-python3 project/main.py http01 --dir https://127.0.0.1:14000/dir --record 127.0.0.1 --domain haha.com --domain sofunny.heh
+python3 project/main.py http01 --dir https://127.0.0.1:14000/dir --record 127.0.0.1 --domain haha.com --domain sofunny.heh --revoke
 
 
 #just pass the arguments to main.py

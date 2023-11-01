@@ -441,38 +441,61 @@ class Client():
                 self.nonce = r.headers["Replay-Nonce"]
                 if r.status_code == 200:
                     self.logger.info("Certificate downloaded")
-                    #download the certificate in the certs folder using the domain name
-                    certificates_text = r.content                
-                    break
+                    #download the certificate in the certs folder with the name certificate.pem
+                    certificate_path = "certs/certificate.pem"
+                    with open(certificate_path, "wb") as f:
+                        f.write(r.content)
                 else:
                     self.logger.error("Error while downloading the certificate: " + r.text)
+                
+    def revoke_certificates(self, domains):
+        """_summary_
+        Revoke the certificates
+        To request that a certificate be revoked, the client sends a POST
+        request to the ACME server's revokeCert URL.  The body of the POST is
+        a JWS object whose JSON payload contains the certificate to be
+        revoked:
+        """
+        headers = {
+            "Content-Type": "application/jose+json"
+        }
+        revoke_url = self.CA_domains["revokeCert"]
+        #rebuild the certificate from both domains
+        cert = x509.load_pem_x509_certificate(
+            open("certs/certificate.pem", "rb").read(),
+            default_backend()
+        )
+        payload_for_revoke = {
+            "certificate": base64.urlsafe_b64encode(cert.public_bytes(cryptography.hazmat.primitives.serialization.Encoding.DER)).decode("utf-8").replace("=", "")
+        }
+        protected_for_revoke = {
+            "alg": "ES256",
+            "kid": self.kid,
+            "nonce": self.nonce,
+            "url": revoke_url
+        }
         
-                    certificate_path = "certs/certificate" + domain + ".pem"
-                    with open(certificate_path, "wb") as f:
-                        f.write(certificate)   
-        #certificates_text has two certificates in it, cut them out for each domain
-        certificates = certificates_text.split(b"-----END CERTIFICATE-----\n")
-        for certificate, domain in zip(certificates, domains):
-            #add the end certificate line back
-            certificate += b"-----END CERTIFICATE-----\n"
-            certificate_path = "certs/certificate" + domain + ".pem"
-            with open(certificate_path, "wb") as f:
-                f.write(certificate)
+        signed_payload = self.authentificator.sign(protected_for_revoke, payload_for_revoke)
+        r = requests.post(revoke_url, headers=headers, data=signed_payload, verify=self.pem_path)
+        self.nonce = r.headers["Replay-Nonce"]
+        if r.status_code == 200:
+            self.logger.info("Certificate revoked")
+        else:
+            self.logger.error("Error while revoking the certificate: " + r.text)
+            
+        
     #-------------------------------------------------------------------------------------------------------------------
-    def start_https_servers(self, domains):
+    def start_https_servers(self):
         """_summary_
         Start the https server
         """
-        https_servers = []
-        for domain in domains:
-            https_server = http.server.HTTPServer((self.record , 5001), http.server.SimpleHTTPRequestHandler)
-            certfile_path = "certs/certificate" + domain + ".pem"
-            keyfile_path = "certs/server_private_key.pem"
-            https_server.socket = wrap_socket(https_server.socket, 
-                                                certfile=certfile_path, 
-                                                keyfile=keyfile_path,
-                                                server_side=True)
-            https_servers.append(https_server)
-            https_server.serve_forever()
-        return https_servers
+        https_server = http.server.HTTPServer((self.record , 5001), http.server.SimpleHTTPRequestHandler)
+        certfile_path = "certs/certificate" + ".pem"
+        keyfile_path = "certs/server_private_key.pem"
+        https_server.socket = wrap_socket(https_server.socket, 
+                                            certfile=certfile_path, 
+                                            keyfile=keyfile_path,
+                                            server_side=True)
+        https_server.serve_forever()
+        return https_server
             

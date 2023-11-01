@@ -62,8 +62,11 @@ if __name__ == '__main__':
     client.finalize_order()
     certificates_urls = client.get_certificate_urls()
     client.download_certificates(certificates_urls, args.domain)
+    if args.revoke:
+        client.revoke_certificates(domains=args.domain)
     #start the https server
-    https_servers = client.start_https_servers(args.domain)
+    #TODO the shutdown server should be ready to be called
+    https_servers = client.start_https_servers()
     #stop the servers
     #subprocess.Popen(["pkill", "-f", "python3 project/HTTP_server.py"])
     #subprocess.Popen(["pkill", "-f", "python3 project/dns_test.py"])
