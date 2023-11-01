@@ -146,6 +146,7 @@ class Client():
         self.https_address = "https://" + record + ":5001"
         
         self.orders = []
+        self.orders_locations = []
         self.authz = []
         self.challenges = []
         
@@ -216,6 +217,7 @@ class Client():
         self.nonce = response.headers["Replay-Nonce"]
         if response.status_code == 201:
             self.logger.info("Account created")
+            self.account = response.json()
             return response.headers["Location"]
         else:
             self.logger.error("Error while creating the account: " + response.text)
@@ -247,8 +249,8 @@ class Client():
         #update the nonce
         self.nonce = response.headers["Replay-Nonce"]
         if response.status_code == 201:
-            #add order to orders
             self.orders.append(response.json())
+            self.orders_locations.append(response.headers["Location"])
             self.logger.info("Order created")
         else:
             self.logger.error("Error while creating the order: " + response.text)          
@@ -389,17 +391,17 @@ class Client():
         headers = {
             "Content-Type": "application/jose+json"
         }
-        for order in self.orders:
+        for order, order_location in zip(self.orders, self.orders_locations):
             for i in range(4):
                 payload_for_order = None
                 protected_for_order = {
                     "alg": "ES256",
                     "kid": self.kid,
                     "nonce": self.nonce,
-                    "url": order["Location"]
+                    "url": order_location
                 }
                 signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
-                r = requests.post(order["Location"], headers=headers, data=signed_payload, verify=self.pem_path)
+                r = requests.post(order_location, headers=headers, data=signed_payload, verify=self.pem_path)
                 self.nonce = r.headers["Replay-Nonce"]
                 if r.status_code == 200:
                     self.logger.info("Order status updated")
@@ -415,31 +417,47 @@ class Client():
                 
         return certificate_urls
         
-    def download_certificate(self):
+    def download_certificates(self, certificate_urls, domains):
         """_summary_
         Download the certificate
         """
         headers = {
             "Content-Type": "application/jose+json"
         }
-        order=self.orders[0] #TODO: check if this is correct
-        self.logger.info(order)
-        for order in self.orders:
-            payload_for_order = None
-            protected_for_order = {
-                "alg": "ES256",
-                "kid": self.kid,
-                "nonce": self.nonce,
-                "url": order["certificate"]
-            }
-            signed_payload = self.authentificator.sign(protected_for_order, payload_for_order)
-            r = requests.post(order["certificate"], headers=headers, data=signed_payload, verify=self.pem_path)
-            self.nonce = r.headers["Replay-Nonce"]
-            if r.status_code == 200:
-                self.logger.info("Certificate downloaded")
-                print(r.text)
-                return certificate
-            else:
-                self.logger.error("Error while downloading the certificate: " + r.text)
-    
+        for certificate_url in certificate_urls:
+            for i in range(4):
+                payload_for_certificate = None
+                protected_for_certificate = {
+                    "alg": "ES256",
+                    "kid": self.kid,
+                    "nonce": self.nonce,
+                    "url": certificate_url
+                }
+                signed_payload = self.authentificator.sign(protected_for_certificate, payload_for_certificate)
+                r = requests.post(certificate_url, headers=headers, data=signed_payload, verify=self.pem_path)
+                self.nonce = r.headers["Replay-Nonce"]
+                if r.status_code == 200:
+                    self.logger.info("Certificate downloaded")
+                    #download the certificate in the certs folder using the domain name
+                    certificates_text = r.content                
+                    break
+                else:
+                    self.logger.error("Error while downloading the certificate: " + r.text)
+        
+                    certificate_path = "certs/certificate" + domain + ".pem"
+                    with open(certificate_path, "wb") as f:
+                        f.write(certificate)   
+        #certificates_text has two certificates in it, cut them out for each domain
+        certificates = certificates_text.split(b"-----END CERTIFICATE-----\n")
+        for certificate, domain in zip(certificates, domains):
+            #add the end certificate line back
+            certificate += b"-----END CERTIFICATE-----\n"
+            certificate_path = "certs/certificate" + domain + ".pem"
+            with open(certificate_path, "wb") as f:
+                f.write(certificate)
     #-------------------------------------------------------------------------------------------------------------------
+        def start_https_server(self, domains):
+            """_summary_
+            Start the https server
+            """
+            
