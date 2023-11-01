@@ -445,6 +445,7 @@ class Client():
                     certificate_path = "certs/certificate.pem"
                     with open(certificate_path, "wb") as f:
                         f.write(r.content)
+                    break
                 else:
                     self.logger.error("Error while downloading the certificate: " + r.text)
                 
